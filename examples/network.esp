@@ -1,0 +1,9 @@
+setup {
+  bool connected = wifiConnect("YOUR_SSID", "YOUR_PASSWORD");
+  serialPrint(connected);
+}
+loop {
+  string response = httpGet("http://example.com");
+  serialPrint(response);
+  delay(10000);
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.builds/
+.env
+*.log
+coverage/
+.tools/
+.verification/

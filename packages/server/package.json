@@ -1,0 +1,22 @@
+{
+  "name": "@esplang/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@esplang/compiler": "1.0.0",
+    "express": "5.1.0",
+    "ws": "8.22.1",
+    "serialport": "13.0.0",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/ws": "8.18.1"
+  }
+}

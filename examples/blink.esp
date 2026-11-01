@@ -1,0 +1,15 @@
+// LED on GPIO 2. Digital sensor on GPIO 4.
+setup {
+  pinMode(2, OUTPUT);
+  pinMode(4, INPUT);
+  serialPrint("EspLang is ready.");
+}
+
+loop {
+  digitalWrite(2, HIGH);
+  int sensor = digitalRead(4);
+  serialPrint(sensor);
+  delay(500);
+  digitalWrite(2, LOW);
+  delay(500);
+}
