@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1030" viewBox="0 0 1280 1030" role="img" aria-labelledby="title description">
+  <title id="title">EspLang Studio architecture and compiler pipeline</title><desc id="description">The browser and Node server share our TypeScript compiler. Arduino CLI and the existing Espressif Xtensa or RISC-V toolchain compile generated C++ into sparse images. esptool-js writes the images directly from the browser to the board; serial data returns to the monitor.</desc>
+  <defs>
+    <radialGradient id="glow"><stop stop-color="#20483f" stop-opacity=".65"/><stop offset="1" stop-color="#101722" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#253448" stroke-opacity=".3"/></pattern>
+    <linearGradient id="metal" x2="1" y2="1"><stop stop-color="#c5d4d9"/><stop offset="1" stop-color="#647f8c"/></linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#8ce8be" stroke-width="1.5"/></marker>
+  </defs>
+  <rect width="1280" height="1030" rx="24" fill="#0e1520"/><rect width="1280" height="1030" rx="24" fill="url(#grid)"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+  <text x="50" y="48" font-size="13" fill="#8ce8be" letter-spacing="2.8">ARCHITECTURE / LOCAL WORKSPACE</text>
+  <text x="50" y="101" font-size="40" fill="#eff7fa" font-weight="650" letter-spacing="-1">One program. Every stage visible.</text>
+  <text x="50" y="135" font-size="18" fill="#8fa3b9" >Custom language stages in mint. Reused native toolchain in amber.</text>
+  <rect x="50" y="168" width="1180" height="114" rx="16" fill="#141d2a" stroke="#2a3a4d"/>
+  <text x="72" y="197" font-size="13" fill="#90b7e6" letter-spacing="1.5">BROWSER / REACT + MONACO</text>
+  <text x="72" y="231" font-size="26" fill="#f1f7fa" font-family="Consolas,monospace">program.esp</text>
+  <text x="72" y="259" font-size="16" fill="#a1aec3" >Edit · autocomplete · inline diagnostics</text>
+  <text x="550" y="224" font-size="20" fill="#cfdfec" >Instant analysis runs in the browser.</text>
+  <text x="550" y="252" font-size="16" fill="#a1aec3" >Build requests and live logs use WebSockets.</text>
+  <path d="M640 285 L640 315" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="50" y="319" width="1180" height="183" rx="16" fill="#10231f" stroke="#355b4b"/>
+  <text x="72" y="343" font-size="13" fill="#8ce8be" letter-spacing="1.3">OUR TYPESCRIPT COMPILER / SHARED BY BROWSER + SERVER</text>
+  <rect x="72" y="359" width="258" height="117" rx="12" fill="#162932" stroke="#355346"/><text x="88" y="387" font-size="13" fill="#8ce8be" font-family="Consolas,monospace">01</text><text x="118" y="387" font-size="14" fill="#edf7f0" font-weight="700">LEXER</text><text x="88" y="419" font-size="16" fill="#b5c6cf" >Characters → tokens</text><text x="88" y="449" font-size="13" fill="#7a9a9b" font-family="Consolas,monospace">lexer.ts</text><path d="M334 416 L356 416" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/><rect x="364" y="359" width="258" height="117" rx="12" fill="#162932" stroke="#355346"/><text x="380" y="387" font-size="13" fill="#8ce8be" font-family="Consolas,monospace">02</text><text x="410" y="387" font-size="14" fill="#edf7f0" font-weight="700">PARSER + AST</text><text x="380" y="419" font-size="16" fill="#b5c6cf" >Tokens → program tree</text><text x="380" y="449" font-size="13" fill="#7a9a9b" font-family="Consolas,monospace">parser.ts · ast.ts</text><path d="M626 416 L648 416" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/><rect x="656" y="359" width="258" height="117" rx="12" fill="#162932" stroke="#355346"/><text x="672" y="387" font-size="13" fill="#8ce8be" font-family="Consolas,monospace">03</text><text x="702" y="387" font-size="14" fill="#edf7f0" font-weight="700">SEMANTIC CHECKS</text><text x="672" y="419" font-size="16" fill="#b5c6cf" >Types, scopes, GPIO rules</text><text x="672" y="449" font-size="13" fill="#7a9a9b" font-family="Consolas,monospace">analyzer.ts · boards.ts</text><path d="M918 416 L940 416" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/><rect x="948" y="359" width="258" height="117" rx="12" fill="#162932" stroke="#355346"/><text x="964" y="387" font-size="13" fill="#8ce8be" font-family="Consolas,monospace">04</text><text x="994" y="387" font-size="14" fill="#edf7f0" font-weight="700">C++ GENERATOR</text><text x="964" y="419" font-size="16" fill="#b5c6cf" >Validated AST → main.cpp</text><text x="964" y="449" font-size="13" fill="#7a9a9b" font-family="Consolas,monospace">codegen.ts</text>
+  <path d="M640 505V524H254V542" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/><text x="660" y="530" font-size="14" fill="#8ce8be" >Generated C++</text>
+  <rect x="50" y="548" width="408" height="151" rx="16" fill="#141d2a" stroke="#2a3a4d"/>
+  <text x="72" y="578" font-size="13" fill="#90b7e6" letter-spacing="1.3">OUR NODE BUILD SERVER</text>
+  <text x="72" y="614" font-size="24" fill="#edf5fa" >Express + child_process</text>
+  <text x="72" y="644" font-size="15" fill="#a1aec3" >Revalidate source · select board · spawn CLI</text>
+  <text x="72" y="674" font-size="14" fill="#809cb8" font-family="Consolas,monospace">builder.ts · server.ts</text>
+  <path d="M463 624 L509 624" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="516" y="548" width="714" height="151" rx="16" fill="#292317" stroke="#79633b"/>
+  <text x="539" y="578" font-size="13" fill="#edc485" letter-spacing="1.3">REUSED OPEN-SOURCE NATIVE TOOLCHAIN</text>
+  <text x="539" y="614" font-size="25" fill="#fff0d4" >Arduino CLI → GCC → image tools</text>
+  <text x="539" y="644" font-size="17" fill="#c6b99e" >Arduino-ESP32 / ESP-IDF libraries · Xtensa or RISC-V</text>
+  <text x="539" y="674" font-size="15" fill="#a99b81" >Compilation, assembly, linking, bootloader + flash images</text>
+  <path d="M640 703 L640 738" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="50" y="744" width="1180" height="115" rx="16" fill="#141d2a" stroke="#2a3a4d"/>
+  <text x="72" y="773" font-size="13" fill="#90b7e6" letter-spacing="1.2">CHECKED SPARSE FIRMWARE IMAGES / RETURNED TO THE BROWSER</text>
+  <text x="72" y="808" font-size="22" fill="#dcece8" font-family="Consolas,monospace">bootloader.bin    partitions.bin    boot_app0.bin    firmware.bin</text>
+  <text x="72" y="838" font-size="16" fill="#a1aec3" >Board-specific offsets · partition-size checks · sector checks · SHA-256 integrity</text>
+  <path d="M640 863 L640 899" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="50" y="905" width="1180" height="88" rx="16" fill="#142922" stroke="#416a55"/>
+  <text x="72" y="940" font-size="27" fill="#d8f6e6" font-weight="600">esptool-js + Web Serial → ESP32 board</text>
+  <text x="72" y="972" font-size="17" fill="#a5c9b6" >Browser-to-USB writes · compressed images · MD5 verification · reset · bidirectional serial</text>
+  <text x="1220" y="1020" font-size="12" fill="#6d8c9c" text-anchor="end" letter-spacing="1.5">ESP32  /  S2  /  S3  /  C3  /  C6</text>
+</g>
+</svg>
