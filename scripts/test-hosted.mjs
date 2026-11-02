@@ -48,6 +48,11 @@ for (let attempt = 0; attempt < 60; attempt++) {
 assert(ready, 'Hosted gateway and isolated runner must become ready');
 const browser = await chromium.launch({
   headless: true,
+  args: [
+    '--host-resolver-rules=MAP studio.localhost 127.0.0.1',
+    '--disable-quic',
+    '--no-proxy-server',
+  ],
   ...(process.platform === 'win32' ? { channel: 'chrome' } : {}),
 });
 const context = await browser.newContext({
@@ -61,7 +66,16 @@ page.on('console', (message) => {
   if (message.type() === 'error') errors.push(message.text());
 });
 try {
-  await page.goto(origin, { waitUntil: 'networkidle' });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(origin, { waitUntil: 'domcontentloaded' });
+      break;
+    } catch (error) {
+      if (attempt >= 2 || !/ERR_NETWORK_CHANGED|ERR_CONNECTION_RESET/.test(String(error)))
+        throw error;
+      await pause(500);
+    }
+  }
   await page.getByText('CLOUD WORKSPACE', { exact: true }).waitFor();
   await page.getByText('Build server ready', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Blink & read', exact: false }).click();
@@ -170,7 +184,7 @@ try {
     'Visible build output:',
     await page
       .locator('.terminal')
-      .textContent()
+      .textContent({ timeout: 1000 })
       .catch(() => 'unavailable'),
   );
   throw error;

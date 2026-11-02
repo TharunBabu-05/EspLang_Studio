@@ -40,6 +40,15 @@ jobs:
       - name: Show service logs on failure
         if: failure()
         run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml logs --tail 100
+      - name: Retain hosted verification evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: hosted-verification
+          path: .verification/hosted/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Shut down the test stack
         if: always()
         run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml down
