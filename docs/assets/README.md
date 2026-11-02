@@ -5,6 +5,7 @@
 - `studio-demo.gif`: actual isolated browser interactions, captured by `npm run docs:record`.
 - `ide-overview.png` and `ide-mobile.png`: safe static screenshots from that recording.
 - `demo-metadata.json`: dimensions, duration, frame count, and capture description.
+- `hosted-studio.png`: successful real Linux container build, captured by `scripts/test-hosted.mjs` in GitHub Actions; this snapshot is separate from the local README tour.
 
 Run the application before recording. Set `README_DEMO_URL` to select its origin and `CHROME_PATH` to use a specific browser executable. The recorder uses a fresh context and bundled examples, and never requests a USB port. It does not alter the running user's editor or browser storage.
 

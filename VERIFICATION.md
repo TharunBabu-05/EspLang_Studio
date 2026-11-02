@@ -4,7 +4,11 @@
 
 The hosted implementation passed **50 unit/integration tests**, **6 browser tests**, TypeScript checks, production builds, and the local HTTP/WebSocket smoke checks on Windows. New checks cover queue order/capacity, cancellation and deadlines, signed sessions, quotas across fresh tokens, proxy identity, hosted HTTP/WebSocket admission, worker stream handling, and sandbox launch constraints. Browser tests cover cloud-mode messaging, queue progress, cancellation, retry guidance, and firmware downloads in addition to the existing editor checks.
 
-The separate `Hosted deployment` workflow builds and tests actual Linux containers and performs a native firmware build through the HTTPS IDE. Its result is recorded by GitHub Actions; local Windows checks do not establish that Docker deployment passed. See [the hosting guide](docs/HOSTING.md) for the deployment boundary and test procedure. No production server or domain has been provisioned.
+The Linux [Hosted deployment run 41470509617](https://github.com/TharunBabu-05/EspLang_Studio/actions/runs/41470509617) **passed**. Chromium opened the HTTPS IDE, submitted a real ESP32/UART build, and downloaded a manifest containing all four checked images. The application image was **282,224 bytes**, with bootloader/partition/OTA/application offsets `0x1000`, `0x8000`, `0xE000`, and `0x10000`. The smoke test independently checked the returned sizes and SHA-256 hashes.
+
+Inspection of the running worker confirmed no network, a read-only root filesystem, UID/GID `1000:1000`, 2 GiB RAM with no additional swap, 128 processes, dropped capabilities, no host mounts, and no service secrets. Both successful completion and an actual browser cancellation removed their job containers. The successful UI is preserved in [this screenshot](docs/assets/hosted-studio.png); the workflow retains its detailed evidence for seven days.
+
+This verifies one hosted ESP32 profile and container lifecycle, not physical USB operation or a production deployment. See [the hosting guide](docs/HOSTING.md) for deployment boundaries. No production server or domain has been provisioned.
 
 ## Original local verification
 

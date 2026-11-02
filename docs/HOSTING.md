@@ -4,6 +4,10 @@ Visitors open your HTTPS website, write EspLang, submit a firmware build, then s
 
 This repository includes a deployment for **one Linux x86_64 server**. It implements an anonymous public beta with a bounded in-memory queue and quotas per client network address. It does not provision a cloud server or purchase a domain.
 
+![Hosted IDE after a real ESP32 firmware build through the isolated Linux worker](assets/hosted-studio.png)
+
+Captured from the [successful HTTPS deployment test](https://github.com/TharunBabu-05/EspLang_Studio/actions/runs/41470509617), using the bundled Blink example. No physical USB device was used in that test.
+
 ## Architecture
 
 ```mermaid
