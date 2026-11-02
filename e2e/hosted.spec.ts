@@ -22,6 +22,7 @@ test('hosted editor explains cloud builds and can cancel queued work', async ({ 
   });
   await page.goto('/');
   await expect(page.getByText('CLOUD WORKSPACE', { exact: true })).toBeVisible();
+  await expect(page.locator('.top-links')).toContainText('Build server ready');
   await expect(page.getByText('Cloud builds · direct browser USB', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '▷ Build', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Queued · position 2');
@@ -51,4 +52,28 @@ test('queue progress and retry guidance are shown without losing source', async 
   await expect(page.locator('.notice[role="alert"]')).toContainText('Retry in 60 seconds.');
   await expect(page.locator('.view-lines')).toContainText('pinMode');
   await expect(page.getByRole('button', { name: '▷ Build', exact: true })).toBeEnabled();
+});
+
+test('a completed hosted build exposes firmware downloads', async ({ page }) => {
+  const firmware = {
+    board: 'esp32',
+    serialRoute: 'uart',
+    fqbn: 'test-profile',
+    cpp: '// Test fixture',
+    diagnostics: [],
+    artifacts: [{ name: 'firmware.bin', address: 65536, data: 'dGVzdA==', size: 4, sha256: '' }],
+  };
+  await page.routeWebSocket('**/api/build', (socket) => {
+    socket.onMessage(() => {
+      socket.send(JSON.stringify({ type: 'result', firmware }));
+      socket.close();
+    });
+  });
+  await page.goto('/');
+  await expect(page.locator('.top-links')).toContainText('Build server ready');
+  await page.getByRole('button', { name: '▷ Build', exact: true }).click();
+  await expect(page.getByLabel('Firmware downloads')).toBeVisible();
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('button', { name: '↓ Manifest', exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toBe('firmware.json');
 });

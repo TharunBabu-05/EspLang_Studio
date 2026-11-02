@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -77,7 +77,7 @@ try {
     }
   }
   await page.getByText('CLOUD WORKSPACE', { exact: true }).waitFor();
-  await page.getByText('Build server ready', { exact: true }).waitFor();
+  await expect(page.locator('.top-links')).toContainText('Build server ready');
   await page.getByRole('button', { name: 'Blink & read', exact: false }).click();
   await page.getByRole('button', { name: '▷ Build', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel build', exact: true }).waitFor();
@@ -122,7 +122,17 @@ try {
       2,
     ),
   );
-  await page.getByLabel('Firmware downloads').waitFor({ timeout: 270000 });
+  await Promise.race([
+    page.getByLabel('Firmware downloads').waitFor({ timeout: 270000 }),
+    page
+      .locator('.notice[role="alert"]')
+      .waitFor({ state: 'visible', timeout: 270000 })
+      .then(async () => {
+        throw new Error(
+          `Hosted build failed: ${await page.locator('.notice[role="alert"]').textContent()}`,
+        );
+      }),
+  ]);
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: '↓ Manifest', exact: true }).click();
   const download = await downloadEvent;

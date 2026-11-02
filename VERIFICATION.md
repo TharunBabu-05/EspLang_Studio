@@ -2,7 +2,7 @@
 
 ## Hosted implementation — 2026-11-02
 
-The hosted implementation passed **50 unit/integration tests**, **5 browser tests**, TypeScript checks, production builds, and the local HTTP/WebSocket smoke checks on Windows. New checks cover queue order/capacity, cancellation and deadlines, signed sessions, quotas across fresh tokens, proxy identity, hosted HTTP/WebSocket admission, worker stream handling, and sandbox launch constraints. Browser tests cover cloud-mode messaging, queue progress, cancellation, and retry guidance in addition to the existing editor checks.
+The hosted implementation passed **50 unit/integration tests**, **6 browser tests**, TypeScript checks, production builds, and the local HTTP/WebSocket smoke checks on Windows. New checks cover queue order/capacity, cancellation and deadlines, signed sessions, quotas across fresh tokens, proxy identity, hosted HTTP/WebSocket admission, worker stream handling, and sandbox launch constraints. Browser tests cover cloud-mode messaging, queue progress, cancellation, retry guidance, and firmware downloads in addition to the existing editor checks.
 
 The separate `Hosted deployment` workflow builds and tests actual Linux containers and performs a native firmware build through the HTTPS IDE. Its result is recorded by GitHub Actions; local Windows checks do not establish that Docker deployment passed. See [the hosting guide](docs/HOSTING.md) for the deployment boundary and test procedure. No production server or domain has been provisioned.
 
