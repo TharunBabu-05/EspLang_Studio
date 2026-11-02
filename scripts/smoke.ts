@@ -39,6 +39,7 @@ async function expectWebSocketError(payload: string): Promise<void> {
     socket.on('message', (raw) => {
       try {
         const event = JSON.parse(raw.toString()) as ServerEvent;
+        if (event.type === 'status') return;
         assert.equal(event.type, 'error');
         clearTimeout(timer);
         socket.close();
@@ -97,6 +98,8 @@ if (process.argv.includes('--build')) {
       try {
         const event = JSON.parse(raw.toString()) as ServerEvent;
         if (event.type === 'log') process.stdout.write(event.message);
+        else if (event.type === 'status')
+          console.log('Build status:', event.state, event.position ?? '');
         else if (event.type === 'error') {
           clearTimeout(timer);
           ws.close();

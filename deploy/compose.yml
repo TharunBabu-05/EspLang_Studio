@@ -1,0 +1,97 @@
+name: esplang
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      DOMAIN: ${DOMAIN:?Run node scripts/init-hosting.mjs your.domain first}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [public, edge]
+    depends_on: [gateway]
+    mem_limit: 256m
+    pids_limit: 128
+    security_opt: ['no-new-privileges:true']
+
+  gateway:
+    image: esplang-gateway:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: gateway
+    restart: unless-stopped
+    init: true
+    environment:
+      BUILD_MODE: hosted
+      HOST: 0.0.0.0
+      PUBLIC_ORIGIN: https://${DOMAIN}
+      SESSION_SECRET: ${SESSION_SECRET:?Run the hosting initializer first}
+      WORKER_URL: http://runner:3002
+      WORKER_SECRET: ${WORKER_SECRET:?Run the hosting initializer first}
+      TRUST_PROXY_CIDRS: 172.30.21.0/24
+      BUILD_CONCURRENCY: ${BUILD_CONCURRENCY:-2}
+      BUILDS_PER_HOUR: ${BUILDS_PER_HOUR:-10}
+      MAX_QUEUED_BUILDS: ${MAX_QUEUED_BUILDS:-20}
+      BUILD_TIMEOUT_MS: ${BUILD_TIMEOUT_MS:-240000}
+      QUEUE_TIMEOUT_MS: ${QUEUE_TIMEOUT_MS:-120000}
+    networks: [edge, control]
+    depends_on: [runner]
+    read_only: true
+    tmpfs: ['/tmp:rw,nosuid,nodev,size=64m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 25s
+
+  runner:
+    image: esplang-runner:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      WORKER_SECRET: ${WORKER_SECRET}
+      WORKER_IMAGE: esplang-worker:local
+      WORKER_POOL: esplang
+      BUILD_CONCURRENCY: ${BUILD_CONCURRENCY:-2}
+      BUILD_TIMEOUT_MS: ${BUILD_TIMEOUT_MS:-240000}
+      WORKER_MEMORY_MB: ${WORKER_MEMORY_MB:-2048}
+      WORKER_TMPFS_MB: ${WORKER_TMPFS_MB:-1024}
+      WORKER_CPUS: ${WORKER_CPUS:-1}
+    volumes: ['/var/run/docker.sock:/var/run/docker.sock']
+    networks: [control]
+    read_only: true
+    tmpfs: ['/tmp:rw,nosuid,nodev,size=64m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 256m
+    pids_limit: 128
+    stop_grace_period: 25s
+
+  # Built explicitly before startup; this service is never launched by compose up.
+  worker-image:
+    image: esplang-worker:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: worker
+    profiles: [images]
+
+networks:
+  public:
+  edge:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.30.21.0/24 }]
+  control:
+    internal: true
+volumes:
+  caddy_data:
+  caddy_config:

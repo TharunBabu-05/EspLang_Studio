@@ -18,7 +18,9 @@ Write **EspLang**, inspect the generated **C++**, build real **ESP32 firmware**,
 
 EspLang Studio is a local development environment built around a handwritten TypeScript compiler. Its lexer, parser, AST, semantic checker, and C++ generator turn `.esp` programs into Arduino-ESP32 source. A Node.js server invokes the native toolchain, streams build logs, and returns checked firmware images. The React IDE handles editing, diagnostics, downloads, browser USB flashing, and bidirectional serial monitoring.
 
-**Source processing and firmware compilation run on your own machine.** The compiler and Monaco editor are bundled locally. GitHub hosts this repository, documentation, and media; the build server runs locally with Node.js and the ESP32 toolchain.
+**Choose local development or a public hosted deployment.** The compiler and Monaco editor are bundled with the application. Local mode runs the build server and ESP32 tools on your machine. Hosted mode sends builds to isolated server containers while USB flashing stays in the visitor's browser.
+
+**Public hosting:** [Deploy the HTTPS IDE, build queue, and isolated workers](docs/HOSTING.md). On a Linux x86_64 Docker server, run `sh deploy/start.sh studio.your-domain.com` after pointing your domain at the server. The repository includes deployment configuration; a public instance still needs a server and domain.
 
 ## See it in action
 
@@ -331,12 +333,12 @@ EspLang_Studio/
 | `npm run setup:toolchain` | Install workspace-local Windows CLI and ESP32 SDK                      |
 | `npm run dev`             | Run the server on 3001 and the IDE on 5173                             |
 | `npm run typecheck`       | Check all three TypeScript packages                                    |
-| `npm test`                | Run the 33 unit/integration tests                                      |
+| `npm test`                | Run compiler, USB, build, queue, session, and hosting tests            |
 | `npm run build`           | Build the compiler, server, and production frontend                    |
 | `npm start`               | Serve the production IDE and backend on 3001                           |
 | `npm run test:smoke`      | Check HTTP and WebSocket paths against a running server                |
 | `npm run test:firmware`   | Run a real native build through WebSocket; save checked images locally |
-| `npm run test:browser`    | Run the three IDE browser tests                                        |
+| `npm run test:browser`    | Run local and hosted IDE browser tests                                 |
 | `npm run docs:assets`     | Regenerate the SVG banner and architecture diagram                     |
 | `npm run docs:record`     | Capture safe UI screenshots and regenerate the demo GIF                |
 
@@ -378,7 +380,7 @@ GitHub Actions runs type checking, unit/integration tests, and production builds
 
 Set environment variables before starting the process; the server does not load a `.env` file automatically. The development frontend proxy targets port 3001 in [`vite.config.ts`](packages/web/vite.config.ts); update that proxy if you change the backend port.
 
-The server is intended for a **local trusted-user workspace**. It includes origin/host checks, a session token, payload/log/time limits, a single active native build, process-tree cancellation, and temporary build cleanup. A public multi-user build service additionally needs authentication, tenant isolation, resource controls, and OS-level build sandboxing.
+The server defaults to a **local trusted-user workspace**. Set `BUILD_MODE=hosted` through the supplied deployment to enable signed expiring sessions, per-address quotas, a bounded queue, and disposable resource-limited build containers. Hosted mode requires `PUBLIC_ORIGIN`, `SESSION_SECRET`, `WORKER_URL`, and `WORKER_SECRET`; it fails startup when required configuration is missing. See the [hosting guide](docs/HOSTING.md) for deployment variables, isolation, privacy, proxy trust, and the single-process queue's operational boundaries.
 
 ## API overview
 
@@ -404,8 +406,9 @@ Events are typed in [`packages/compiler/src/index.ts`](packages/compiler/src/ind
 
 ```text
 log     → { type, message }
+status  → { type, state: "queued" | "building", position? }
 result  → { type, firmware: { board, serialRoute, fqbn, artifacts, cpp, diagnostics } }
-error   → { type, message, diagnostics? }
+error   → { type, message, diagnostics?, retryAfter? }
 ```
 
 Each artifact has `name`, `address`, `size`, Base64 `data`, and `sha256`. Diagnostics carry severity, message, and start/end source positions. The server accepts source up to its configured 100,000-character limit within the 128 KB request/message limit. Closing a build connection cancels its native process tree.

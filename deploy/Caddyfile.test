@@ -1,0 +1,9 @@
+# CI only: this certificate is intentionally issued by a local test CA.
+{$DOMAIN} {
+  tls internal
+  reverse_proxy gateway:3001 {
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+    flush_interval -1
+  }
+}

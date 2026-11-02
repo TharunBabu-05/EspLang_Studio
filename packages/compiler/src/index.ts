@@ -45,5 +45,6 @@ export interface Firmware {
 }
 export type ServerEvent =
   | { type: 'log'; message: string }
+  | { type: 'status'; state: 'queued' | 'building'; position?: number }
   | { type: 'result'; firmware: Firmware }
-  | { type: 'error'; message: string; diagnostics?: Diagnostic[] };
+  | { type: 'error'; message: string; diagnostics?: Diagnostic[]; retryAfter?: number };

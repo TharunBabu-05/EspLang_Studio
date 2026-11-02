@@ -1,0 +1,45 @@
+name: Hosted deployment
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'packages/server/**'
+      - 'packages/compiler/**'
+      - 'packages/web/**'
+      - 'scripts/test-hosted.mjs'
+      - 'package-lock.json'
+      - '.github/workflows/hosted.yml'
+permissions:
+  contents: read
+concurrency:
+  group: hosted-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sandbox-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: node scripts/init-hosting.mjs studio.localhost
+      - name: Validate deployment configuration
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml config --quiet
+      - name: Build firmware sandbox image
+        run: docker build --progress=plain -f deploy/Dockerfile --target worker -t esplang-worker:local .
+      - name: Build and start the hosted stack with a test certificate
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml up --build -d
+      - name: Test HTTPS IDE, isolation, native compilation, and downloads
+        run: node scripts/test-hosted.mjs
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml logs --tail 100
+      - name: Shut down the test stack
+        if: always()
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml -f deploy/compose.test.yml down

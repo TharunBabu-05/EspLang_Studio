@@ -752,3 +752,22 @@ h1 {
     display: none;
   }
 }
+.hosted-info {
+  color: #a1b5c4;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.build-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 12px 0;
+  border: 1px solid #355b4b;
+  border-radius: 8px;
+  background: #10231f;
+  color: #c9f4df;
+  font-size: 13px;
+}

@@ -143,7 +143,10 @@ export async function buildFirmware(
   log: (chunk: string) => void,
   signal?: AbortSignal,
   serialRoute: 'uart' | 'usb' = 'uart',
+  jobs?: number,
 ): Promise<Firmware> {
+  if (jobs !== undefined && (!Number.isInteger(jobs) || jobs < 1 || jobs > 8))
+    throw new BuildError('Invalid compiler parallelism');
   const result = compile(source, boardId);
   if (!result.cpp) throw new BuildError('EspLang compilation failed', result.diagnostics);
   const board = boards[boardId];
@@ -163,6 +166,7 @@ export async function buildFirmware(
       'compile',
       '--fqbn',
       fqbn,
+      ...(jobs === undefined ? [] : ['--jobs', String(jobs)]),
       '--build-path',
       output,
       '--build-property',

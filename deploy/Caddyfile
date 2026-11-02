@@ -1,0 +1,13 @@
+{$DOMAIN} {
+  encode zstd gzip
+  header Strict-Transport-Security "max-age=31536000"
+  request_body {
+    max_size 128KB
+  }
+  reverse_proxy gateway:3001 {
+    # Overwrite caller-supplied forwarding headers at the only public ingress.
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+    flush_interval -1
+  }
+}

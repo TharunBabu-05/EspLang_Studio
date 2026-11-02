@@ -54,6 +54,10 @@ export function IDE() {
   const [serverState, setServerState] = useState('Checking build server'),
     [showCpp, setShowCpp] = useState(false),
     [notice, setNotice] = useState('');
+  const [hosted, setHosted] = useState(false);
+  const [buildStage, setBuildStage] = useState('Connecting to build service');
+  const [buildLimit, setBuildLimit] = useState<number>();
+  const buildAbortRef = useRef<AbortController | null>(null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -75,9 +79,17 @@ export function IDE() {
     const controller = new AbortController();
     void fetch('/api/health', { signal: controller.signal })
       .then((r) => r.json())
-      .then((status: { toolchain: boolean }) =>
-        setServerState(status.toolchain ? 'Build server ready' : 'ESP32 toolchain needs setup'),
-      )
+      .then((status: { toolchain: boolean; mode?: string; limits?: { buildsPerHour: number } }) => {
+        setHosted(status.mode === 'hosted');
+        setBuildLimit(status.limits?.buildsPerHour);
+        setServerState(
+          status.toolchain
+            ? 'Build server ready'
+            : status.mode === 'hosted'
+              ? 'Build workers unavailable'
+              : 'ESP32 toolchain needs setup',
+        );
+      })
       .catch(() => {
         if (!controller.signal.aborted) setServerState('Build server offline');
       });
@@ -127,6 +139,7 @@ export function IDE() {
   useEffect(
     () => () => {
       socketRef.current?.close();
+      buildAbortRef.current?.abort();
       void monitor.current.close().catch(() => {});
     },
     [],
@@ -153,10 +166,20 @@ export function IDE() {
     setNotice('');
     setLogs(`Building for ${boards[board].label}…\n`);
     setTab('build');
+    setBuildStage('Connecting to build service');
+    const controller = new AbortController();
+    buildAbortRef.current = controller;
+    let terminal = false;
     try {
-      const response = await fetch('/api/session');
-      if (!response.ok) throw new Error('Cannot access the build server');
+      const response = await fetch('/api/session', { signal: controller.signal });
+      if (!response.ok)
+        throw new Error(
+          response.status === 429
+            ? 'Too many requests. Wait a moment before building again.'
+            : 'Cannot access the build server',
+        );
       const session = (await response.json()) as { token: string };
+      controller.signal.throwIfAborted();
       const socket = new WebSocket(
         `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/build`,
       );
@@ -164,31 +187,62 @@ export function IDE() {
       socket.onopen = () =>
         socket.send(JSON.stringify({ source, board, serialRoute, token: session.token }));
       socket.onmessage = (event) => {
+        if (controller.signal.aborted) return;
         try {
           const data = JSON.parse(String(event.data)) as ServerEvent;
           if (data.type === 'log') appendLog(data.message);
-          else if (data.type === 'result') {
+          else if (data.type === 'status') {
+            const stage =
+              data.state === 'queued'
+                ? `Queued · position ${data.position ?? 1}`
+                : 'Building firmware';
+            setBuildStage(stage);
+            appendLog(`${stage}\n`);
+          } else if (data.type === 'result') {
+            terminal = true;
             setFirmware(data.firmware);
             setCpp(data.firmware.cpp);
             appendLog(`Ready to flash · ${data.firmware.artifacts.length} images\n`);
           } else {
+            terminal = true;
             if (data.diagnostics) setDiagnostics(data.diagnostics);
-            reportError(data.message);
+            reportError(
+              `${data.message}${data.retryAfter ? ` Retry in ${data.retryAfter} seconds.` : ''}`,
+            );
           }
         } catch (e) {
           reportError(e);
           socket.close();
         }
       };
-      socket.onerror = () => reportError('Build connection failed. Is the server running?');
+      socket.onerror = () => {
+        if (controller.signal.aborted) return;
+        terminal = true;
+        reportError('Build connection failed. Please try again.');
+      };
       socket.onclose = () => {
+        if (socketRef.current !== socket) return;
+        if (!terminal && !controller.signal.aborted)
+          reportError('Build connection closed before completion. Please build again.');
         setBuilding(false);
         socketRef.current = null;
+        buildAbortRef.current = null;
       };
     } catch (e) {
-      setBuilding(false);
-      reportError(e);
+      if (buildAbortRef.current === controller) {
+        setBuilding(false);
+        buildAbortRef.current = null;
+      }
+      if (!controller.signal.aborted) reportError(e);
     }
+  }
+  function cancelBuild(): void {
+    buildAbortRef.current?.abort();
+    socketRef.current?.close();
+    socketRef.current = null;
+    buildAbortRef.current = null;
+    setBuilding(false);
+    appendLog('Build cancelled.\n');
   }
   async function connect(): Promise<void> {
     try {
@@ -274,7 +328,7 @@ export function IDE() {
           <span>
             EspLang <b>Studio</b>
           </span>
-          <small>LOCAL WORKSPACE</small>
+          <small>{hosted ? 'CLOUD WORKSPACE' : 'LOCAL WORKSPACE'}</small>
         </a>
         <div className="top-links">
           <span className="status-dot" />
@@ -426,6 +480,24 @@ export function IDE() {
               </button>
             </div>
           </div>
+          {hosted && (
+            <div className="hosted-info">
+              Firmware builds on the server. USB flashing stays in your browser.
+              {buildLimit && <span> Up to {buildLimit} builds per hour per network address.</span>}
+              <span> Source is sent when you build; avoid embedding private credentials.</span>
+            </div>
+          )}
+          {building && (
+            <div className="build-status" role="status" aria-live="polite">
+              <span>
+                <span className="status-dot" />
+                {buildStage}
+              </span>
+              <button className="secondary" onClick={cancelBuild}>
+                Cancel build
+              </button>
+            </div>
+          )}
           {notice && (
             <div className="notice" role="alert">
               <span>{notice}</span>
@@ -534,16 +606,6 @@ export function IDE() {
                 </button>
               </div>
               <div className="console-controls">
-                {building && (
-                  <button
-                    onClick={() => {
-                      socketRef.current?.close();
-                      appendLog('Build cancelled.\n');
-                    }}
-                  >
-                    Cancel build
-                  </button>
-                )}
                 {tab === 'serial' && (
                   <>
                     <select
@@ -617,7 +679,7 @@ export function IDE() {
       <footer className="statusbar">
         <span>
           <span className="status-dot" />
-          All processing stays on this machine
+          {hosted ? 'Cloud builds · direct browser USB' : 'All processing stays on this machine'}
         </span>
         <span>
           {firmware

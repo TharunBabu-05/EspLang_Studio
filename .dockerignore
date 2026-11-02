@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+.git
+.tools
+.verification
+.codex
+.agents
+.aws
+.builds
+coverage
+test-results
+**/.env
+**/.env.*
+**/*.log
+docs/assets
