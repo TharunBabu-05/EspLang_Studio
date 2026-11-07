@@ -1,4 +1,29 @@
-# Verification — 2026-11-01
+# Verification record
+
+## Native compiler and first reported hardware blink — 2026-11-07
+
+The native implementation check passed **106 unit/integration tests**, including
+**56 native tests**, TypeScript checks and production builds. The native blink
+build produced 464 code/literal-pool bytes and a 1,536-byte ROM image without
+invoking Arduino/GCC. All code/pool bytes matched an independent assembler;
+esptool's image inspection accepted the checksum. These are development checks,
+not external dependencies of the native build.
+
+The user supplied a terminal log showing an **ESP32-D0WD-V3, revision v3.1**,
+40 MHz crystal and 4 MB flash. Uploading the native image at `0x1000` using
+esptool 5.1.0 with `--no-stub` completed with **Hash of data verified**, followed
+by an automatic RTS reset. The user reported LED blinking after that upload.
+This records an observed blink on one board, not comprehensive hardware
+qualification. Cold power-cycle persistence and measured timing remain pending.
+
+The preceding recovery read was interrupted at 10.9% when RESET was pressed;
+there is no verified complete pre-flash backup from that session. Never use that
+partial backup for full restoration. See the [native hardware record](docs/NATIVE_COMPILER.md#hardware-test-record)
+and the [README flashing guide](README.md#identify-back-up-and-flash).
+
+The README's native animation illustrates the pipeline; it is not a hardware
+recording. Browser tests and hosted deployment results below are earlier,
+separate checks of the Arduino workflow.
 
 ## Hosted implementation — 2026-11-02
 

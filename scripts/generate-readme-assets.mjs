@@ -1,124 +1,247 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
+import gifenc from 'gifenc';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
-const directory = path.join(root, 'docs', 'assets');
+const directory = fileURLToPath(new URL('../docs/assets/', import.meta.url));
 await mkdir(directory, { recursive: true });
-const escape = (text) =>
-  String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-const label = (x, y, text, size = 18, color = '#a1aec3', extra = '') =>
-  `<text x="${x}" y="${y}" font-size="${size}" fill="${color}" ${extra}>${escape(text)}</text>`;
-const panel = (x, y, w, h, fill = '#141d2a', stroke = '#2a3a4d', radius = 16) =>
-  `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="${fill}" stroke="${stroke}"/>`;
-const arrow = (x1, y1, x2, y2, color = '#8ce8be') =>
-  `<path d="M${x1} ${y1} L${x2} ${y2}" fill="none" stroke="${color}" stroke-width="2" marker-end="url(#arrow)"/>`;
-const shell = (
+const previews = fileURLToPath(new URL('../.verification/readme-assets/', import.meta.url));
+await mkdir(previews, { recursive: true });
+const escape = (value) =>
+  String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const ink = '#edf5fa',
+  muted = '#a0b1c5',
+  mint = '#89e8be',
+  amber = '#f3c888',
+  blue = '#91baff';
+const text = (x, y, value, size = 18, fill = muted, extra = '') =>
+  `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" ${extra}>${escape(value)}</text>`;
+const box = (x, y, width, height, fill = '#152131', stroke = '#304255', radius = 14) =>
+  `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}" stroke="${stroke}"/>`;
+const arrow = (x1, y1, x2, y2, color = mint) =>
+  `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="${color}" stroke-width="2" fill="none"/><path d="M${x2 - 5} ${y2 - 8}L${x2} ${y2}L${x2 + 5} ${y2 - 8}" stroke="${color}" stroke-width="2" fill="none"/>`;
+const svg = (
+  width,
   height,
   title,
   description,
   body,
-) => `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="${height}" viewBox="0 0 1280 ${height}" role="img" aria-labelledby="title description">
-  <title id="title">${escape(title)}</title><desc id="description">${escape(description)}</desc>
-  <defs>
-    <radialGradient id="glow"><stop stop-color="#20483f" stop-opacity=".65"/><stop offset="1" stop-color="#101722" stop-opacity="0"/></radialGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#253448" stroke-opacity=".3"/></pattern>
-    <linearGradient id="metal" x2="1" y2="1"><stop stop-color="#c5d4d9"/><stop offset="1" stop-color="#647f8c"/></linearGradient>
-    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#8ce8be" stroke-width="1.5"/></marker>
-  </defs>
-  <rect width="1280" height="${height}" rx="24" fill="#0e1520"/><rect width="1280" height="${height}" rx="24" fill="url(#grid)"/>
-  <g font-family="Segoe UI,Arial,sans-serif">${body}</g>
-</svg>\n`;
+) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title description">
+<title id="title">${escape(title)}</title><desc id="description">${escape(description)}</desc>
+<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#31485c" stroke-opacity=".22"/></pattern><radialGradient id="glow"><stop stop-color="#22664e" stop-opacity=".55"/><stop offset="1" stop-color="#101923" stop-opacity="0"/></radialGradient></defs>
+<rect width="${width}" height="${height}" rx="20" fill="#0c1420"/><rect width="${width}" height="${height}" rx="20" fill="url(#grid)"/>
+<g font-family="Segoe UI,Arial,sans-serif">${body}</g></svg>\n`;
 
-let pins = '';
-for (let i = 0; i < 9; i++) {
-  const position = 822 + i * 23;
-  pins += `<path d="M${position} 118v-22 M${position} 332v22 M798 ${142 + i * 22}h-22 M1026 ${142 + i * 22}h22" stroke="#668e91" stroke-width="7"/>`;
-}
-const hero = shell(
-  460,
-  'EspLang Studio — from source to silicon',
-  'A custom ESP32 language compiler, local web IDE, and USB flashing workspace. EspLang source is compiled to C++ and built into firmware with Espressif tools.',
+const hero = svg(
+  1280,
+  480,
+  'EspLang Native: our compiler, assembler and firmware builder',
+  'EspLang source compiles to ESP32 firmware through our own Xtensa compiler, assembler, linker and ROM image builder. No C++ conversion is used in the native build. Targets original ESP32-WROOM-32.',
   `
-  <ellipse cx="960" cy="210" rx="340" ry="240" fill="url(#glow)"/>
-  ${panel(48, 42, 50, 50, '#8ce8be', '#8ce8be', 12)}${label(59, 77, 'e_', 34, '#153b2d', 'font-family="Consolas,monospace" font-weight="700"')}
-  ${label(116, 63, 'A LANGUAGE FOR THE THINGS YOU BUILD', 13, '#8ce8be', 'letter-spacing="3"')}
-  ${label(116, 86, 'CUSTOM COMPILER  /  LOCAL WEB IDE  /  DIRECT USB', 11, '#788ba4', 'letter-spacing="1.9"')}
-  ${label(48, 173, 'EspLang Studio', 76, '#eff7fa', 'font-weight="700" letter-spacing="-3"')}
-  ${label(52, 221, 'From source to silicon.', 35, '#8ce8be', 'font-weight="500"')}
-  ${label(52, 260, 'Write hardware. See the whole pipeline.', 21, '#a1aec3')}
-  ${panel(52, 294, 588, 48, '#141f2b', '#31463f', 9)}
-  ${label(71, 325, '.esp    →    C++    →    .bin    →    ESP32', 21, '#d1f3e4', 'font-family="Consolas,monospace"')}
-  ${pins}${panel(798, 118, 228, 214, '#1d2d36', '#739598', 14)}${panel(817, 137, 190, 176, 'url(#metal)', '#c3d3d5', 7)}
-  ${label(842, 182, 'ESP', 46, '#1f3540', 'font-weight="700"')}${label(842, 237, '32', 60, '#1f3540', 'font-weight="700"')}
-  ${label(842, 277, 'YOUR CODE. REAL HARDWARE.', 9, '#2a4650', 'letter-spacing="1.2"')}
-  ${panel(1038, 167, 196, 72, '#152a27', '#3d6555', 11)}${label(1056, 192, 'ESP32 · S2 · S3', 16, '#d3f1e5')}${label(1056, 216, 'C3 · C6', 16, '#8ce8be')}
-  <path d="M52 378H1228" stroke="#2c3a4e"/>
-  ${label(52, 414, 'HANDWRITTEN COMPILER', 12, '#8198ae', 'letter-spacing="1.8"')}
-  ${label(441, 414, '5 CHIP FAMILIES', 12, '#8198ae', 'letter-spacing="1.8"')}
-  ${label(766, 414, 'BROWSER USB + SERIAL', 12, '#8198ae', 'letter-spacing="1.8"')}
-  ${label(1130, 414, 'v1.0.0', 13, '#8ce8be', 'font-family="Consolas,monospace"')}
+  <ellipse cx="1030" cy="245" rx="330" ry="250" fill="url(#glow)"/>
+  ${text(48, 49, 'ESPLANG / SOURCE TO SILICON', 13, mint, 'letter-spacing="3"')}
+  ${text(48, 132, 'EspLang Studio', 70, ink, 'font-weight="700" letter-spacing="-2"')}
+  ${text(50, 184, 'Our language. Our native toolchain.', 29, mint)}
+  ${text(50, 224, 'Compile .esp directly into ESP32 .bin firmware.', 20)}
+  ${box(50, 255, 705, 57, '#122b25', '#35664e')}
+  ${text(70, 279, 'NATIVE COMPILATION / NO C++ CONVERSION', 11, mint, 'letter-spacing="1.4"')}
+  ${text(70, 300, '.esp → our compiler → Xtensa assembly', 19, ink, 'font-family="Consolas,monospace"')}
+  ${box(50, 325, 705, 57, '#122b25', '#35664e')}
+  ${text(70, 349, 'OUR ASSEMBLER + LINKER + FIRMWARE BUILDER', 11, mint, 'letter-spacing="1.4"')}
+  ${text(70, 370, 'Assembly → machine code → ROM image → .bin', 19, ink, 'font-family="Consolas,monospace"')}
+  ${Array.from({ length: 8 }, (_, i) => `<path d="M873 ${136 + i * 24}h-20 M1133 ${136 + i * 24}h20" stroke="#7caba3" stroke-width="6"/>`).join('')}
+  ${box(873, 112, 260, 238, '#203d3b', '#6daba0', 18)}
+  ${box(892, 131, 222, 200, '#c4d8d6', '#dfebe5', 8)}
+  ${text(915, 191, 'ESP32', 44, '#173c3b', 'font-weight="700"')}
+  ${text(917, 227, 'XTENSA LX6', 18, '#28524d', 'letter-spacing="2"')}
+  ${text(917, 272, 'OUR CODE', 17, '#173c3b', 'font-weight="700"')}
+  ${text(917, 297, 'REAL HARDWARE', 17, '#173c3b', 'font-weight="700"')}
+  ${text(1003, 380, 'Native v0.1 · experimental', 17, mint, 'text-anchor="middle"')}
+  <path d="M48 409H1232" stroke="#304255"/>
+  ${text(50, 444, 'OWN COMPILER + ASSEMBLER + BUILDER', 13, mint)}
+  ${text(565, 444, 'ORIGINAL ESP32 / XTENSA LX6', 13, blue)}
+  ${text(1230, 444, 'NATIVE LED BLINK REPORTED', 13, mint, 'text-anchor="end"')}
 `,
 );
 await writeFile(path.join(directory, 'hero.svg'), hero);
 
-const stages = [
-  ['01', 'LEXER', 'Characters → tokens', 'lexer.ts'],
-  ['02', 'PARSER + AST', 'Tokens → program tree', 'parser.ts · ast.ts'],
-  ['03', 'SEMANTIC CHECKS', 'Types, scopes, GPIO rules', 'analyzer.ts · boards.ts'],
-  ['04', 'C++ GENERATOR', 'Validated AST → main.cpp', 'codegen.ts'],
-];
-let stageCards = '';
-stages.forEach(([number, title, detail, file], i) => {
-  const x = 72 + i * 292;
-  stageCards += panel(x, 359, 258, 117, '#162932', '#355346', 12);
-  stageCards += label(x + 16, 387, number, 13, '#8ce8be', 'font-family="Consolas,monospace"');
-  stageCards += label(x + 46, 387, title, 14, '#edf7f0', 'font-weight="700"');
-  stageCards += label(x + 16, 419, detail, 16, '#b5c6cf');
-  stageCards += label(x + 16, 449, file, 13, '#7a9a9b', 'font-family="Consolas,monospace"');
-  if (i < 3) stageCards += arrow(x + 262, 416, x + 284, 416);
-});
-const architecture = shell(
-  1030,
-  'EspLang Studio architecture and compiler pipeline',
-  'The browser and Node server share our TypeScript compiler. Arduino CLI and the existing Espressif Xtensa or RISC-V toolchain compile generated C++ into sparse images. esptool-js writes the images directly from the browser to the board; serial data returns to the monitor.',
+const stage = (x, y, color, heading, title, detail) =>
+  `${box(x, y, 564, 100, color === amber ? '#28241d' : '#122821', color === amber ? '#695337' : '#35664e')}
+  ${text(x + 22, y + 25, heading, 11, color, 'letter-spacing="1.5"')}
+  ${text(x + 22, y + 57, title, 23, ink, 'font-weight="600"')}
+  ${text(x + 22, y + 83, detail, 16, muted)}`;
+const architecture = svg(
+  1280,
+  1280,
+  'EspLang architecture: shared frontend, two build pipelines',
+  'The shared lexer, parser and semantic analyzer feed either our native Xtensa generator, assembler, linker and image packager, or our C++ generator and external Arduino tools. Native uploads use esptool; browser uploads use esptool-js. Hosted Docker workers currently run Arduino builds.',
   `
-  ${label(50, 48, 'ARCHITECTURE / LOCAL WORKSPACE', 13, '#8ce8be', 'letter-spacing="2.8"')}
-  ${label(50, 101, 'One program. Every stage visible.', 40, '#eff7fa', 'font-weight="650" letter-spacing="-1"')}
-  ${label(50, 135, 'Custom language stages in mint. Reused native toolchain in amber.', 18, '#8fa3b9')}
-  ${panel(50, 168, 1180, 114)}
-  ${label(72, 197, 'BROWSER / REACT + MONACO', 13, '#90b7e6', 'letter-spacing="1.5"')}
-  ${label(72, 231, 'program.esp', 26, '#f1f7fa', 'font-family="Consolas,monospace"')}
-  ${label(72, 259, 'Edit · autocomplete · inline diagnostics', 16)}
-  ${label(550, 224, 'Instant analysis runs in the browser.', 20, '#cfdfec')}
-  ${label(550, 252, 'Build requests and live logs use WebSockets.', 16)}
-  ${arrow(640, 285, 640, 315)}
-  ${panel(50, 319, 1180, 183, '#10231f', '#355b4b')}
-  ${label(72, 343, 'OUR TYPESCRIPT COMPILER / SHARED BY BROWSER + SERVER', 13, '#8ce8be', 'letter-spacing="1.3"')}
-  ${stageCards}
-  <path d="M640 505V524H254V542" fill="none" stroke="#8ce8be" stroke-width="2" marker-end="url(#arrow)"/>${label(660, 530, 'Generated C++', 14, '#8ce8be')}
-  ${panel(50, 548, 408, 151)}
-  ${label(72, 578, 'OUR NODE BUILD SERVER', 13, '#90b7e6', 'letter-spacing="1.3"')}
-  ${label(72, 614, 'Express + child_process', 24, '#edf5fa')}
-  ${label(72, 644, 'Revalidate source · select board · spawn CLI', 15)}
-  ${label(72, 674, 'builder.ts · server.ts', 14, '#809cb8', 'font-family="Consolas,monospace"')}
-  ${arrow(463, 624, 509, 624)}
-  ${panel(516, 548, 714, 151, '#292317', '#79633b')}
-  ${label(539, 578, 'REUSED OPEN-SOURCE NATIVE TOOLCHAIN', 13, '#edc485', 'letter-spacing="1.3"')}
-  ${label(539, 614, 'Arduino CLI → GCC → image tools', 25, '#fff0d4')}
-  ${label(539, 644, 'Arduino-ESP32 / ESP-IDF libraries · Xtensa or RISC-V', 17, '#c6b99e')}
-  ${label(539, 674, 'Compilation, assembly, linking, bootloader + flash images', 15, '#a99b81')}
-  ${arrow(640, 703, 640, 738)}
-  ${panel(50, 744, 1180, 115)}
-  ${label(72, 773, 'CHECKED SPARSE FIRMWARE IMAGES / RETURNED TO THE BROWSER', 13, '#90b7e6', 'letter-spacing="1.2"')}
-  ${label(72, 808, 'bootloader.bin    partitions.bin    boot_app0.bin    firmware.bin', 22, '#dcece8', 'font-family="Consolas,monospace"')}
-  ${label(72, 838, 'Board-specific offsets · partition-size checks · sector checks · SHA-256 integrity', 16)}
-  ${arrow(640, 863, 640, 899)}
-  ${panel(50, 905, 1180, 88, '#142922', '#416a55')}
-  ${label(72, 940, 'esptool-js + Web Serial → ESP32 board', 27, '#d8f6e6', 'font-weight="600"')}
-  ${label(72, 972, 'Browser-to-USB writes · compressed images · MD5 verification · reset · bidirectional serial', 17, '#a5c9b6')}
-  ${label(1220, 1020, 'ESP32  /  S2  /  S3  /  C3  /  C6', 12, '#6d8c9c', 'text-anchor="end" letter-spacing="1.5"')}
+  ${text(50, 44, 'ARCHITECTURE / OWNERSHIP AT EVERY STAGE', 13, mint, 'letter-spacing="2"')}
+  ${text(50, 98, 'From language design to a blinking LED.', 38, ink, 'font-weight="650"')}
+  ${text(50, 134, 'Mint: our compiler stages  ·  Amber: Arduino toolchain  ·  Blue: upload tools', 18)}
+  ${box(50, 164, 1180, 144, '#10231f', '#35664e')}
+  ${text(74, 193, 'SHARED FRONTEND / program.esp', 13, mint, 'letter-spacing="1.5"')}
+  ${text(74, 235, '01  Lexer', 25, ink)}${text(74, 272, 'Characters → tokens + source locations', 16)}
+  ${text(465, 235, '02  Parser + AST', 25, ink)}${text(465, 272, 'Tokens → structured program', 16)}
+  ${text(863, 235, '03  Semantic checks', 25, ink)}${text(863, 272, 'Types · scopes · GPIO diagnostics', 16)}
+  <path d="M640 308V330H332V344 M640 330H948V344" stroke="${mint}" fill="none" stroke-width="2"/>
+  ${text(50, 373, 'NATIVE v0.1', 22, mint, 'font-weight="700"')}
+  ${text(50, 400, 'Original ESP32 · CLI/API · supported subset', 17)}
+  ${text(666, 373, 'ARDUINO WORKFLOW', 22, amber, 'font-weight="700"')}
+  ${text(666, 400, 'ESP32 / S2 / S3 / C3 / C6 · browser IDE', 17)}
+  ${stage(50, 424, mint, 'OUR NATIVE CODE + RUNTIME GENERATOR', 'Xtensa assembly → program.s', 'Startup · fixed registers · GPIO · cycle-counter delays')}
+  ${stage(666, 424, mint, 'OUR C++ GENERATOR', 'Arduino source → main.cpp', 'Source mappings · runtime guards · hardware wrappers')}
+  ${arrow(332, 528, 332, 550)}${arrow(948, 528, 948, 550, amber)}
+  ${stage(50, 556, mint, 'OUR ASSEMBLER + SINGLE-SECTION LINKER', 'Assembly → machine instructions', 'Encode bytes · resolve labels · lay out code and literals')}
+  ${stage(666, 556, amber, 'EXTERNAL ARDUINO / ESPRESSIF TOOLS', 'Arduino CLI → GCC + SDK libraries', 'C++ compilation · assembly · linking · image tools')}
+  ${arrow(332, 660, 332, 682)}${arrow(948, 660, 948, 682, amber)}
+  ${stage(50, 688, mint, 'OUR FIRMWARE IMAGE BUILDER', 'program.bin + program.map.json', 'ROM headers · IRAM/DRAM segments · XOR checksum')}
+  ${stage(666, 688, amber, 'ARDUINO IMAGES / CHECKED BY OUR SERVER', 'Bootloader + partitions + application', 'Sparse images · bounds checks · SHA-256 manifest')}
+  ${arrow(332, 792, 332, 814, blue)}${arrow(948, 792, 948, 814, blue)}
+  ${box(50, 820, 564, 100, '#142237', '#375881')}
+  ${text(72, 848, 'EXTERNAL UPLOAD TOOL', 11, blue, 'letter-spacing="1.5"')}
+  ${text(72, 880, 'esptool --no-stub → chip ROM', 23, ink)}
+  ${text(72, 906, 'One native image at 0x1000; separate from IDE flashing', 15)}
+  ${box(666, 820, 564, 100, '#142237', '#375881')}
+  ${text(688, 848, 'EXTERNAL USB LIBRARY / OUR IDE INTEGRATION', 11, blue, 'letter-spacing="1.2"')}
+  ${text(688, 880, 'esptool-js + Web Serial → board', 23, ink)}
+  ${text(688, 906, 'Chip checks · verified writes · serial monitoring', 16)}
+  ${arrow(332, 924, 332, 946)}
+  ${box(50, 952, 1180, 112, '#10231f', '#35664e')}
+  ${text(74, 985, 'NATIVE HARDWARE MILESTONE', 12, mint, 'letter-spacing="1.5"')}
+  ${text(74, 1020, 'ESP32-D0WD-V3: verified upload + user-reported LED blink', 25, ink)}
+  ${text(74, 1048, '1,536-byte image · 464 code/pool bytes · power-cycle persistence and measured timing pending', 16)}
+  ${box(50, 1096, 1180, 132, '#152131', '#304255')}
+  ${text(74, 1127, 'HOSTED ARDUINO BUILDS / DEPLOYMENT PREPARED', 12, blue, 'letter-spacing="1.5"')}
+  ${text(74, 1162, 'HTTPS → signed session → bounded queue → disposable Docker worker', 24, ink)}
+  ${text(74, 1190, 'Quotas · cancellation · CPU/RAM/time limits · no worker network · USB stays in the browser', 16)}
+  ${text(74, 1213, 'Real Linux deployment test passed. Public production provisioning is still required.', 15, muted)}
+  ${text(1230, 1260, 'See README for feature limits and evidence boundaries.', 13, muted, 'text-anchor="end"')}
 `,
 );
 await writeFile(path.join(directory, 'architecture.svg'), architecture);
-console.log('Generated docs/assets/hero.svg and architecture.svg');
+await sharp(Buffer.from(hero)).png().toFile(path.join(previews, 'hero.png'));
+await sharp(Buffer.from(architecture)).png().toFile(path.join(previews, 'architecture.png'));
+
+// Illustrated animation, not a screen recording or hardware capture.
+const steps = [
+  [
+    'SOURCE',
+    'Understand the program',
+    'Our lexer, parser and semantic analyzer',
+    'Read .esp syntax; check types and scopes.',
+    'Input: examples/native-blink.esp',
+  ],
+  [
+    'ASM',
+    'Generate Xtensa assembly',
+    'Our native code and runtime generator',
+    'Emit startup, GPIO writes and delay loops.',
+    'Output: program.s',
+  ],
+  [
+    'BYTES',
+    'Encode and link instructions',
+    'Our assembler + single-section linker',
+    'Resolve labels, literals and memory addresses.',
+    'Output: 464 code / pool bytes',
+  ],
+  [
+    'IMAGE',
+    'Package the ROM image',
+    'Our firmware image builder',
+    'Add headers, segments, padding and checksum.',
+    'Output: program.bin / 1,536 bytes',
+  ],
+  [
+    'USB',
+    'Upload the firmware',
+    'External esptool, using the chip ROM',
+    'Identify → back up → write-flash at 0x1000.',
+    'Uploading is separate from compilation.',
+  ],
+  [
+    'RUN',
+    'The board executes our code',
+    'ESP32-D0WD-V3 / GPIO 2',
+    'Upload verified; LED blink reported by user.',
+    'Power-cycle and timing checks remain pending.',
+  ],
+];
+const source = [
+  'setup {',
+  '  pinMode(2, OUTPUT);',
+  '}',
+  '',
+  'loop {',
+  '  digitalWrite(2, HIGH);',
+  '  delay(500);',
+  '  digitalWrite(2, LOW);',
+  '  delay(500);',
+  '}',
+];
+const { GIFEncoder, quantize, applyPalette } = gifenc;
+const gif = GIFEncoder();
+let frames = 0,
+  durationMs = 0;
+for (let step = 0; step < steps.length; step++) {
+  const count = step === 5 ? 4 : 2;
+  for (let phase = 0; phase < count; phase++) {
+    const on = step === 5 && phase % 2 === 0;
+    const [name, title, owner, detail, output] = steps[step];
+    const frame = svg(
+      960,
+      500,
+      'Illustrated native build pipeline',
+      'An explanatory animation, not a live IDE or hardware recording.',
+      `
+      ${text(28, 31, 'ESPLANG NATIVE / ILLUSTRATED PIPELINE', 11, mint, 'letter-spacing="2"')}
+      ${text(28, 77, 'Your source. Our machine-code backend.', 33, ink, 'font-weight="650"')}
+      ${box(28, 110, 346, 296, '#101e2b', '#304255')}
+      ${text(46, 136, 'native-blink.esp', 13, blue, 'font-family="Consolas,monospace"')}
+      ${source.map((line, i) => text(46, 165 + i * 22, line, 16, line.includes('digitalWrite') && on ? mint : '#ccd9e6', 'font-family="Consolas,monospace" xml:space="preserve"')).join('')}
+      ${box(394, 110, 538, 296, '#122821', '#35664e')}
+      ${text(418, 145, `${String(step + 1).padStart(2, '0')} / ${name}`, 14, mint, 'letter-spacing="2"')}
+      ${text(418, 194, title, 25, ink, 'font-weight="600"')}
+      ${text(418, 232, owner, 17, mint)}
+      ${text(418, 266, detail, 16, muted)}
+      ${text(418, 307, output, 16, ink)}
+      <circle cx="432" cy="361" r="10" fill="${on ? mint : '#29453b'}" stroke="${mint}"/>
+      ${text(456, 367, step === 5 ? `GPIO 2 LED / illustration ${on ? 'ON' : 'OFF'}` : 'Native compiler + assembler + builder', 15, muted)}
+      ${steps.map(([tag], i) => `${box(28 + i * 153, 426, 139, 34, i === step ? '#224e3a' : '#152131', i === step ? mint : '#304255', 7)}${text(97 + i * 153, 448, tag, 12, i === step ? mint : muted, 'text-anchor="middle" letter-spacing="1.5"')}`).join('')}
+      ${text(28, 484, 'Concept animation · CLI backend today · not a hardware recording or native IDE preview', 12, muted)}
+    `,
+    );
+    if (phase === 0)
+      await sharp(Buffer.from(frame))
+        .png()
+        .toFile(path.join(previews, `native-${step}.png`));
+    const pixels = await sharp(Buffer.from(frame)).ensureAlpha().raw().toBuffer();
+    const rgba = new Uint8Array(pixels);
+    const palette = quantize(rgba, 128);
+    const index = applyPalette(rgba, palette);
+    const delay = step === 5 ? 600 : 650;
+    gif.writeFrame(index, 960, 500, { palette, delay, repeat: 0 });
+    frames++;
+    durationMs += delay;
+  }
+}
+gif.finish();
+await writeFile(path.join(directory, 'native-pipeline.gif'), gif.bytes());
+await writeFile(
+  path.join(directory, 'native-pipeline-metadata.json'),
+  JSON.stringify(
+    {
+      width: 960,
+      height: 500,
+      frames,
+      durationMs,
+      kind: 'illustrated pipeline; not a recording',
+      generator: 'scripts/generate-readme-assets.mjs',
+    },
+    null,
+    2,
+  ) + '\n',
+);
+console.log('Generated hero.svg, architecture.svg and native-pipeline.gif');

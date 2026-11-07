@@ -1,0 +1,8 @@
+{
+  "width": 960,
+  "height": 500,
+  "frames": 14,
+  "durationMs": 8900,
+  "kind": "illustrated pipeline; not a recording",
+  "generator": "scripts/generate-readme-assets.mjs"
+}

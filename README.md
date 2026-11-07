@@ -1,57 +1,195 @@
 <div align="center">
 
-![EspLang Studio — a custom ESP32 compiler, local web IDE, and direct USB workspace](docs/assets/hero.svg)
+![EspLang Native: .esp to .bin through our compiler, assembler and builder](docs/assets/hero.svg)
 
 # A small language. A complete hardware workflow.
 
-Write **EspLang**, inspect the generated **C++**, build real **ESP32 firmware**, and flash your board directly from the browser.
+Compile **`.esp → .bin`** with **our own native compiler, assembler, linker and firmware builder** for ESP32.
+
+**Native pipeline:** `.esp → our compiler → Xtensa assembly → our assembler/linker → our image builder → .bin`
 
 [![CI](https://github.com/TharunBabu-05/EspLang_Studio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TharunBabu-05/EspLang_Studio/actions/workflows/ci.yml)
 ![Node.js 22.12 or newer](https://img.shields.io/badge/Node.js-22.12%2B-8ce8be?style=flat-square&labelColor=141d2a)
 ![TypeScript 5.9.3](https://img.shields.io/badge/TypeScript-5.9.3-8ab4f8?style=flat-square&labelColor=141d2a)
 ![React 19.1.1](https://img.shields.io/badge/React-19.1.1-8ab4f8?style=flat-square&labelColor=141d2a)
-![Five chip families](https://img.shields.io/badge/ESP32_families-5-8ce8be?style=flat-square&labelColor=141d2a)
+![Native backend: experimental Xtensa LX6](https://img.shields.io/badge/Native_v0.1-Xtensa_LX6-8ce8be?style=flat-square&labelColor=141d2a)
+![Hardware milestone: user-reported blink](https://img.shields.io/badge/Hardware-user_reported_blink-8ce8be?style=flat-square&labelColor=141d2a)
 
-[Quick start](#quick-start) · [Architecture](#architecture) · [Language guide](#language-guide) · [Supported boards](#supported-boards) · [Troubleshooting](#troubleshooting)
+[Native build](#native-compiler-and-builder) · [Flash and recovery](#identify-back-up-and-flash) · [IDE setup](#quick-start) · [Architecture](#architecture) · [Language guide](#language-guide) · [Verification](#commands-and-verification)
 
 </div>
 
-EspLang Studio is a local development environment built around a handwritten TypeScript compiler. Its lexer, parser, AST, semantic checker, and C++ generator turn `.esp` programs into Arduino-ESP32 source. A Node.js server invokes the native toolchain, streams build logs, and returns checked firmware images. The React IDE handles editing, diagnostics, downloads, browser USB flashing, and bidirectional serial monitoring.
+EspLang Native compiles `.esp` directly into ESP32 `.bin` firmware through **our own compiler, Xtensa assembler, linker and image builder**. The native build has no C++ conversion stage. Its supported subset runs on the original ESP32 / ESP32-WROOM-32.
 
-**Choose local development or a public hosted deployment.** The compiler and Monaco editor are bundled with the application. Local mode runs the build server and ESP32 tools on your machine. Hosted mode sends builds to isolated server containers while USB flashing stays in the visitor's browser.
+## Native compiler and builder
 
-**Public hosting:** [Deploy the HTTPS IDE, build queue, and isolated workers](docs/HOSTING.md). On a Linux x86_64 Docker server, run `sh deploy/start.sh studio.your-domain.com` after pointing your domain at the server. The repository includes deployment configuration; a public instance still needs a server and domain.
+**This path goes directly from EspLang to machine instructions. It does not generate C++ or invoke Arduino CLI, GCC, LLVM, an external assembler/linker, or esptool during the build.** The compiler runs on Node.js and uses our handwritten TypeScript implementation. Uploading is a separate operation and currently uses external esptool.
+
+From a fresh checkout, install Node.js 22.12+ and the project dependencies:
+
+```powershell
+git clone https://github.com/TharunBabu-05/EspLang_Studio.git
+cd EspLang_Studio
+npm.cmd ci
+npm.cmd run build:native -- examples/native-blink.esp
+```
+
+On Linux/macOS use `npm` instead of `npm.cmd`. The native build does **not** require `setup:toolchain`. The example is:
+
+```text
+setup {
+  pinMode(2, OUTPUT);
+}
+
+loop {
+  digitalWrite(2, HIGH);
+  delay(500);
+  digitalWrite(2, LOW);
+  delay(500);
+}
+```
+
+| Output in `.builds/native/native-blink/` | Purpose                                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `program.s`                              | Generated Xtensa assembly, literal pool and source-line annotations               |
+| `program.code.bin`                       | Linked instructions/constants; not a standalone flash image                       |
+| `program.bin`                            | Complete ROM-loadable image: **1,536 bytes**, including **464 code/pool bytes**   |
+| `program.map.json`                       | Entry point, memory regions, symbols, variable addresses, assumptions and SHA-256 |
+
+Our native builder uses a two-pass assembler with label resolution, a fixed memory layout, generated startup code and an image writer. Startup establishes the stack/data base, stalls the second core, handles boot watchdogs and selects the 40 MHz crystal. GPIO and cycle-counter delays use hardware registers directly. No Arduino library or prebuilt second-stage bootloader is linked into this image; the chip's built-in ROM still loads it.
+
+<details>
+<summary><strong>Native v0.1 support and limits</strong></summary>
+
+- **Supported:** `setup`, `loop`/`task`, `return`, `int`, `bool`, globals/locals, scopes, `+`, `-`, `*`, comparisons, boolean logic, `if`/`else`, `while`, and `for`.
+- **Hardware:** constant `pinMode(2, OUTPUT)`, `digitalWrite(2, HIGH/LOW)`, and constant `delay(0..60000)`.
+- **Explicit errors:** unsupported chips, user functions, division/remainder, float/string, serial, GPIO input, PWM, Wi-Fi and HTTP. There is no silent Arduino fallback.
+- **Limits:** 64,000 source characters, 32 KiB code/literal pool and 256 variable/temporary slots. Integer arithmetic wraps to 32 bits.
+- **Target assumptions:** original ESP32-WROOM-32, 40 MHz crystal, 4 MB flash, secure boot and flash encryption disabled. GPIO 2 must have an LED attached; board LED wiring varies.
+- **Integration:** CLI/API available. The browser IDE's Build button still uses Arduino. General register allocation, optimizing IR and a general-purpose ELF linker are future work.
+
+The older `examples/blink.esp` includes serial output and input GPIO. Use `examples/native-blink.esp` for this backend. Full implementation details: [NATIVE_COMPILER.md](docs/NATIVE_COMPILER.md).
+
+</details>
+
+## Identify, back up, and flash
+
+These are three separate operations. **`read-flash` creates a backup; restoring it requires `write-flash`.** The assignments `$espTool = ...` and `$nativeBackup = ...` only set PowerShell variables.
+
+| Command       | Purpose                                                         | Data direction        | Changes stored firmware? |
+| ------------- | --------------------------------------------------------------- | --------------------- | ------------------------ |
+| `flash-id`    | Identify the chip and flash; confirm compatibility              | Board → terminal      | No                       |
+| `read-flash`  | Save the existing flash contents for recovery                   | Board → laptop `.bin` | No                       |
+| `write-flash` | Erase affected sectors, install the new image, verify and reset | Laptop `.bin` → board | Yes                      |
+
+The following PowerShell commands use the **esptool 5.1.0 executable already present in this project's Windows toolchain installation**. If it is absent, install esptool separately and substitute its executable, or use `python -m esptool` in place of `& $espTool`. Only uploading needs esptool; native compilation does not need the Arduino SDK. See [Espressif's command reference](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html).
+
+### 1. Identify the connected board
+
+Close the browser's USB connection and all serial monitors first. Replace **COM13** with the port shown in your Device Manager.
+
+```powershell
+$espTool = ".\.tools\data\packages\esp32\tools\esptool_py\5.1.0\esptool.exe"
+$espPort = "COM13"
+& $espTool --chip esp32 --port $espPort flash-id
+```
+
+For this native image, confirm **original ESP32**, **40 MHz crystal**, and **4 MB flash**. Stop if they differ. The tested board reported `ESP32-D0WD-V3 (revision v3.1)`.
+
+### 2. Save a complete recovery backup
+
+```powershell
+New-Item -ItemType Directory -Force .\.builds | Out-Null
+$nativeBackup = ".\.builds\esp32-backup-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".bin"
+$nativeBackupVerified = $false
+& $espTool --chip esp32 --port $espPort --baud 460800 read-flash 0x0 0x400000 $nativeBackup
+if ($LASTEXITCODE -ne 0) { throw "Backup failed. Do not proceed to flashing." }
+if ((Get-Item -LiteralPath $nativeBackup).Length -ne 4194304) { throw "Backup size is incomplete." }
+$nativeBackupVerified = $true
+```
+
+Wait for **100% and successful completion**. Do not press RESET/EN during the read. Keep the backup private: flash may contain saved credentials or application data. `.builds/` is excluded from Git.
+
+The first reported hardware session interrupted this read at **10.9%** by pressing RESET; esptool reported `Packet content transfer stopped`. That session did **not** produce a verified full recovery backup. Do not restore a partial backup. A fresh backup after flashing saves the current native firmware, not the previous full image.
+
+### 3. Install our native image
+
+Build `examples/native-blink.esp` first. In the same terminal, after a successful backup:
+
+```powershell
+if ($nativeBackupVerified -ne $true) { throw "Complete the backup step first." }
+& $espTool --chip esp32 --port $espPort --baud 115200 --no-stub write-flash --flash-mode dio --flash-freq 40m --flash-size 4MB 0x1000 ".\.builds\native\native-blink\program.bin"
+```
+
+**This image replaces the usual bootloader at `0x1000`.** It is not an Arduino application for `0x10000`; do not pass it to the existing IDE's Arduino flashing manifest. The tool erases the affected sector automatically; a full `erase-flash` is unnecessary.
+
+`--no-stub` uploads through the chip's built-in ROM without loading esptool's temporary RAM flasher. The identify/backup commands above use esptool's normal temporary stub; no stub is included in our generated firmware. `--baud` sets USB-UART transfer speed, while `--flash-freq 40m` sets SPI flash frequency.
+
+Successful output includes `Hash of data verified` and `Hard resetting via RTS pin`. The native file is 1,536 bytes; the tool reported writing 2,048 transfer bytes in the recorded session because of transfer padding. After reset, the connected GPIO 2 LED should alternate approximately every half-second. This program does not print serial messages.
+
+**RESET/EN restarts the processor; it does not erase firmware.** Pressing it during a transfer interrupts that transfer. If connection is stuck at `Connecting…`, hold BOOT, briefly press EN/RESET, then release BOOT once connected. Do not keep resetting during reading/writing. After a successful flash, unplug/reconnect power to separately check persistence.
+
+<details>
+<summary><strong>Restore a known-good complete backup</strong></summary>
+
+In the same terminal, with the original successful backup still selected:
+
+```powershell
+if ($nativeBackupVerified -ne $true) { throw "Select a known-good complete backup before restoring." }
+& $espTool --chip esp32 --port $espPort --baud 460800 write-flash 0x0 $nativeBackup
+```
+
+In a new terminal, reselect the tool, port and a backup whose successful read you verified. A full 4 MB file alone does not establish that its contents are correct. Never restore the interrupted backup from the first test. Restoring writes the saved bootloader, applications, partition data and settings back to flash.
+
+</details>
 
 ## See it in action
 
-**Experimental native compiler:** [EspLang Native v0.1](docs/NATIVE_COMPILER.md)
-builds a small EspLang subset directly into Xtensa LX6 assembly and an ESP32 ROM
-image using our assembler, linker and image writer. Run
-`npm run build:native -- examples/native-blink.esp`; Arduino CLI and the ESP32 SDK
-are not required for this command. It currently targets the original ESP32-WROOM-32
-with GPIO 2 output. Hardware boot/blink verification is pending. The browser IDE's
-existing Build button still uses the Arduino pipeline.
+![Animated explanation of the native source-to-firmware pipeline](docs/assets/native-pipeline.gif)
+
+Illustrated native pipeline, generated from code. This animation explains the stages; it is not a recording of hardware or an implemented native IDE interface. [Static architecture alternative](docs/assets/architecture.svg).
 
 ![Animated tour of the real IDE: editing EspLang, correcting a GPIO error, viewing generated C++, choosing a target, and opening serial controls](docs/assets/studio-demo.gif)
 
-Recorded from the real application in an isolated browser session using the included examples. The tour demonstrates editor and compiler behavior plus board and serial controls. Actual flashing requires selecting a USB device in your browser.
+The second animation is a recording of the real browser IDE's **Arduino workflow**, using safe bundled examples. It demonstrates editing, compiler feedback and board/serial controls; it does not record a physical flash session.
 
 [Open the full-size still screenshot](docs/assets/ide-overview.png) · [View the mobile layout](docs/assets/ide-mobile.png) · [See the recording script](scripts/record-readme-demo.mjs)
 
 ## What you can do
 
-| Capability                       | Included behavior                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Write a hardware program**     | Typed variables, functions, `setup`, `loop` / `task`, conditions, loops, and hardware primitives                        |
-| **Catch mistakes while editing** | Syntax and type errors, source positions, scope checks, GPIO validation, Monaco markers, and a navigable Problems panel |
-| **Understand the translation**   | A read-only `main.cpp` tab shows generated C++ with source-line mappings                                                |
-| **Build native firmware**        | Arduino CLI invokes Xtensa or RISC-V tools; live stdout/stderr arrive over WebSockets                                   |
-| **Inspect the output**           | Download sparse binary images, generated C++, source files, and a firmware manifest                                     |
-| **Flash from the browser**       | Chip-family and flash-capacity checks, compressed writes, MD5 verification, and reset via `esptool-js`                  |
-| **Talk to your board**           | Bidirectional serial, selectable baud, and monitor disconnect/reconnect around flashing                                 |
-| **Work locally**                 | Browser source autosave, bundled editor assets, and a workspace-local Windows toolchain installation                    |
+| Capability                        | Included behavior                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Write a hardware program**      | Typed variables, functions, `setup`, `loop` / `task`, conditions, loops, and hardware primitives                             |
+| **Catch mistakes while editing**  | Syntax and type errors, source positions, scope checks, GPIO validation, Monaco markers, and a navigable Problems panel      |
+| **Understand the translation**    | A read-only `main.cpp` tab shows generated C++ with source-line mappings                                                     |
+| **Build through Arduino**         | Arduino CLI invokes Xtensa or RISC-V tools; live stdout/stderr arrive over WebSockets                                        |
+| **Build with our native backend** | Generate Xtensa instructions, resolve labels, lay out memory, and package an ESP32 ROM image entirely in our TypeScript code |
+| **Inspect the output**            | Download sparse binary images, generated C++, source files, and a firmware manifest                                          |
+| **Flash from the browser**        | Chip-family and flash-capacity checks, compressed writes, MD5 verification, and reset via `esptool-js`                       |
+| **Talk to your board**            | Bidirectional serial, selectable baud, and monitor disconnect/reconnect around flashing                                      |
+| **Work locally**                  | Browser source autosave, bundled editor assets, and a workspace-local Windows toolchain installation                         |
+| **Prepare public hosting**        | HTTPS gateway, expiring sessions, per-address limits, bounded queue and isolated disposable build workers                    |
+
+## Existing Arduino workflow and hosting
+
+The repository also retains the earlier C++/Arduino backend for the browser IDE and its broader hardware/language support. This is a separate workflow; it is not a stage of our native build.
+
+| Choose a workflow     | Arduino backend / browser IDE                                | EspLang Native v0.1 / CLI                                                    |
+| --------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Compilation           | `.esp → C++ → Espressif toolchain → firmware`                | `.esp → Xtensa assembly → our assembler/linker → firmware`                   |
+| Firmware dependencies | Arduino CLI, Arduino-ESP32 and its SDK/toolchain             | Our generated startup/runtime; no prebuilt firmware SDK libraries            |
+| Targets               | ESP32, S2, S3, C3, C6                                        | Original ESP32 / ESP32-WROOM-32 only                                         |
+| Language coverage     | Functions, strings, float, GPIO, serial, PWM, Wi-Fi and HTTP | Int/bool, arithmetic subset, control flow, GPIO 2 output and constant delays |
+| Upload                | Browser `esptool-js` + Web Serial                            | Separate `esptool` CLI; native uploader not yet implemented                  |
+| Entry point           | `npm run dev`, then the IDE Build button                     | `npm run build:native -- examples/native-blink.esp`                          |
+
+**Hardware milestone — November 7, 2026:** native firmware was uploaded to an **ESP32-D0WD-V3, revision v3.1**, with a **40 MHz crystal and 4 MB flash**. The supplied terminal log confirms flash hash verification, and the user reported the LED blinking after upload/reset. Power-cycle persistence and measured timing have not yet been reported. See the [hardware evidence record](docs/NATIVE_COMPILER.md#hardware-test-record).
+
+**Hosted mode is also implemented for the Arduino workflow:** HTTPS, signed sessions, a bounded queue, quotas, cancellation, and disposable Docker build workers. [Deployment instructions](docs/HOSTING.md) and a successful Linux deployment test are included. A public production URL has not been established; the Docker deployment still needs a server/domain. Managed Vercel deployment work is incomplete.
 
 ## Quick start
+
+This section starts the **Arduino-backed browser IDE**. For the SDK-free native CLI build, use [Native compiler and builder](#native-compiler-and-builder).
 
 ### Requirements
 
@@ -100,37 +238,46 @@ Open **http://127.0.0.1:3001**. Express serves the built IDE and the HTTP/WebSoc
 
 ## Architecture
 
-![Architecture: browser and shared TypeScript compiler, Node build server, reused Arduino/GCC toolchain, checked firmware images, and browser USB flashing](docs/assets/architecture.svg)
+![Two firmware pipelines: shared EspLang frontend, our native Xtensa backend and assembler, or C++ through Arduino; separate USB upload paths](docs/assets/architecture.svg)
 
-The source follows this path:
+Both backends start with our handwritten language frontend:
 
 ```text
 program.esp
   → lexer → tokens
-  → recursive-descent parser → typed AST
+  → recursive-descent parser → AST
   → semantic analysis → checked program
-  → C++ generator → main.cpp
-  → Node build server → Arduino CLI
-  → Espressif GCC, assembler, linker, and image tools
-  → bootloader + partition table + OTA metadata + application
-  → browser esptool-js + Web Serial → ESP32
+       ├─ Native CLI: our Xtensa code generator → program.s
+       │    → our assembler + single-section linker
+       │    → our startup/runtime + image packager → program.bin
+       │    → esptool ROM upload → original ESP32
+       │
+       └─ Browser IDE: our C++ generator → main.cpp
+            → Node server → Arduino CLI + Espressif GCC/SDK
+            → bootloader + partitions + OTA metadata + application
+            → esptool-js + Web Serial → supported ESP32 family
 ```
 
-**The custom language front end and C++ generator are written from scratch in this repository.** The final machine-code backend comes from the existing Espressif/GCC toolchain. `.esp` is the file extension; the language is defined by its grammar, AST, types, and hardware semantics.
+**Our code now covers the language frontend, C++ generator, native Xtensa code generator, native assembler/linker, runtime generation and firmware packaging.** The Arduino workflow still delegates final machine-code generation to Espressif/GCC. Host runtimes and USB upload tools remain external dependencies; the native firmware contains no prebuilt SDK runtime.
 
-| Stage                             | Implementation                                                                                     | Responsibility                                                                      |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Lexical analysis                  | [`lexer.ts`](packages/compiler/src/lexer.ts)                                                       | Tokenize identifiers, numbers, strings, comments, and operators; track source spans |
-| Syntax and program representation | [`parser.ts`](packages/compiler/src/parser.ts), [`ast.ts`](packages/compiler/src/ast.ts)           | Parse statements and precedence rules into explicit AST nodes                       |
-| Semantic analysis                 | [`analyzer.ts`](packages/compiler/src/analyzer.ts), [`boards.ts`](packages/compiler/src/boards.ts) | Check types, scopes, calls, returns, and board-specific GPIO constraints            |
-| Source generation                 | [`codegen.ts`](packages/compiler/src/codegen.ts)                                                   | Emit C++, runtime hardware guards, and `#line` mappings                             |
-| Build orchestration               | [`builder.ts`](packages/server/src/builder.ts)                                                     | Spawn the native tools, stream logs, package images, and validate layout            |
-| Native code generation            | Arduino CLI + Arduino-ESP32 + Espressif GCC                                                        | Compile C++, link against the SDK, and create flashable images                      |
-| USB transport                     | [`espFlasher.ts`](packages/web/src/espFlasher.ts) + `esptool-js`                                   | Detect the chip, check images, write flash, verify, and reset                       |
+| Stage                             | Implementation                                                                                           | Responsibility                                                                                 |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Lexical analysis                  | [`lexer.ts`](packages/compiler/src/lexer.ts)                                                             | Tokenize identifiers, numbers, strings, comments, and operators; track source spans            |
+| Syntax and program representation | [`parser.ts`](packages/compiler/src/parser.ts), [`ast.ts`](packages/compiler/src/ast.ts)                 | Parse statements and precedence rules into explicit AST nodes                                  |
+| Semantic analysis                 | [`analyzer.ts`](packages/compiler/src/analyzer.ts), [`boards.ts`](packages/compiler/src/boards.ts)       | Check types, scopes, calls, returns, and board-specific GPIO constraints                       |
+| C++ source generation             | [`codegen.ts`](packages/compiler/src/codegen.ts)                                                         | Emit C++, Arduino runtime guards and source mappings                                           |
+| Native code/runtime generation    | [`native/compiler.ts`](packages/compiler/src/native/compiler.ts)                                         | Lower supported source to Xtensa instructions; emit startup, GPIO and delay code               |
+| Native assembler and linker       | [`native/assembler.ts`](packages/compiler/src/native/assembler.ts)                                       | Encode instructions, resolve labels/literals, reject invalid operands and branch ranges        |
+| Native image builder              | [`native/image.ts`](packages/compiler/src/native/image.ts), [`native-build.ts`](scripts/native-build.ts) | Validate memory regions; write ROM image headers, segments, padding, checksum and output files |
+| Arduino build orchestration       | [`builder.ts`](packages/server/src/builder.ts)                                                           | Spawn Arduino tools, stream logs and validate the returned image layout                        |
+| Arduino machine-code backend      | Arduino CLI + Arduino-ESP32 + Espressif GCC                                                              | Compile generated C++, link SDK libraries and create flash images                              |
+| USB transport                     | [`espFlasher.ts`](packages/web/src/espFlasher.ts) + `esptool-js`                                         | Detect the chip, check images, write flash, verify, and reset                                  |
 
-The same compiler package runs in the browser for immediate feedback and in the server before a native build. The server creates a minimal `.ino` file next to generated `main.cpp` so Arduino can build the project without applying sketch prototype generation to our generated C++.
+The language frontend runs in the browser for immediate feedback and in the server before an Arduino build. The Arduino server creates a minimal `.ino` next to `main.cpp` to avoid sketch prototype generation on our C++. The native CLI uses `compileNative()` directly and needs no server or child compiler process. Hosted builds currently use the Arduino branch.
 
 ## Your first program
+
+This example uses the **Arduino backend**. The native GPIO 2 example is [above](#native-compiler-and-builder).
 
 Connect an LED with a suitable resistor to **GPIO 4**, then use:
 
@@ -160,6 +307,8 @@ This is **EspLang syntax**; the code block uses C++ highlighting for readability
 Source is autosaved in browser storage. Editing source, changing the board, or changing the console route invalidates the previous firmware result and requires another build.
 
 ## Language guide
+
+This section describes the full language through the **Arduino backend**. Native v0.1 implements the smaller [documented subset](docs/NATIVE_COMPILER.md#language-subset); unsupported features produce errors.
 
 ### Program structure and types
 
@@ -207,7 +356,7 @@ Forward function references and recursion are supported. Non-void functions must
 | -------------- | --------------------------------------- |
 | Arithmetic     | `+`, `-`, `*`, `/`, `%`, unary signs    |
 | Comparison     | `==`, `!=`, `<`, `<=`, `>`, `>=`        |
-| Logic          | `&&`, `                                 |     | `, `!` |
+| Logic          | `&&`, `\|\|`, `!`                       |
 | Assignment     | `=`, `+=`, `-=`, `*=`, `/=`, `++`, `--` |
 | Comments       | `// line` and `/* block */`             |
 | String escapes | `\n`, `\r`, `\t`, `\"`, `\\`            |
@@ -254,11 +403,11 @@ WiFi credentials are compiled into the firmware. Use placeholders in committed s
 npx tsx scripts/compile.ts examples/blink.esp main.cpp esp32
 ```
 
-This exercises the custom compiler only. Native `.bin` generation additionally requires Arduino CLI and the board core.
+This exercises the C++ backend only. Arduino firmware generation needs Arduino CLI and the board core. Our separate `build:native` command generates a `.bin` without those dependencies for its supported subset.
 
 ## Supported boards
 
-The verified profiles use the default **4 MB** partition layout. They target generic development modules; check exposed pins and memory wiring on your specific module.
+The following **Arduino profiles** use the default **4 MB** partition layout. Our native backend supports only the original ESP32 and uses a single ROM image instead of this partitioned application layout. Check exposed pins and wiring on your module.
 
 | Chip family | Architecture | Base Arduino FQBN     | Bootloader offset | Console options              |
 | ----------- | ------------ | --------------------- | ----------------- | ---------------------------- |
@@ -275,6 +424,8 @@ The USB vendor filters include `0x10C4`, `0x1A86`, `0x0403`, and Espressif `0x30
 The monitor releases its reader/writer locks before flashing. If it was active, it reopens after a successful flash. Monitor baud choices are **115200** and **921600**; generated firmware starts at **115200**. Flash transfer uses 921600 independently.
 
 ## Firmware images and integrity
+
+The table below applies to the **Arduino workflow**. Native v0.1 emits one `program.bin` at `0x1000`, containing IRAM code/literals and zero-initialized DRAM; see [native memory layout](docs/NATIVE_COMPILER.md#runtime-and-memory-layout).
 
 | Image            | ESP32 / S2 | S3 / C3 / C6 |
 | ---------------- | ---------- | ------------ |
@@ -312,47 +463,54 @@ EspLang_Studio/
 │   ├── compiler/src/
 │   │   ├── lexer.ts, parser.ts, ast.ts
 │   │   ├── analyzer.ts, boards.ts, codegen.ts
-│   │   └── index.ts                 # Compiler API + shared protocol types
+│   │   ├── native/                  # Xtensa generator, assembler/linker, image builder
+│   │   └── index.ts                 # Compiler APIs + shared protocol types
 │   ├── server/src/
 │   │   ├── server.ts                # HTTP, WebSocket, local access checks
-│   │   ├── builder.ts               # Native builds and image packaging
+│   │   ├── builder.ts               # Arduino builds and image packaging
+│   │   ├── hosting.ts, runner.ts    # Queue, quotas, sessions and isolated worker broker
 │   │   └── nodeSerialAdapter.ts     # Adapter for Electron main-process use
 │   └── web/src/
 │       ├── IDE.tsx, language.ts     # Monaco and editor workflow
 │       ├── espFlasher.ts, serialMonitor.ts
 │       ├── ArtifactDownloads.tsx, examples.ts
 │       └── main.tsx, style.css
-├── examples/                       # Blink and network .esp programs
+├── examples/                       # Arduino examples + native-blink.esp
 ├── tests/                          # Compiler, build, USB, and stream tests
 ├── e2e/                            # Chrome IDE tests
 ├── scripts/                        # Setup, CLI, smoke tests, media generation
-├── docs/assets/                    # Architecture SVG, banner, screenshots, GIF
+├── docs/NATIVE_COMPILER.md          # Native design, scope and hardware evidence
+├── docs/HOSTING.md, deploy/         # HTTPS Docker deployment and worker isolation
+├── docs/assets/                    # Architecture SVG, banner, screenshots, GIFs
 ├── .github/workflows/ci.yml         # Typecheck, test, and production build
 ├── README.md
-└── VERIFICATION.md                 # Native build evidence and boundaries
+└── VERIFICATION.md                 # Arduino, native and hosting evidence
 ```
 
 `.tools/`, `.verification/`, `.builds/`, dependencies, generated bundles, environment files, and logs are excluded from Git. The Electron serial adapter is implemented; an Electron application shell and preload bridge are not included.
 
 ## Commands and verification
 
-| Command                   | Purpose                                                                |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `npm run setup:toolchain` | Install workspace-local Windows CLI and ESP32 SDK                      |
-| `npm run dev`             | Run the server on 3001 and the IDE on 5173                             |
-| `npm run typecheck`       | Check all three TypeScript packages                                    |
-| `npm test`                | Run compiler, USB, build, queue, session, and hosting tests            |
-| `npm run build`           | Build the compiler, server, and production frontend                    |
-| `npm start`               | Serve the production IDE and backend on 3001                           |
-| `npm run test:smoke`      | Check HTTP and WebSocket paths against a running server                |
-| `npm run test:firmware`   | Run a real native build through WebSocket; save checked images locally |
-| `npm run test:browser`    | Run local and hosted IDE browser tests                                 |
-| `npm run docs:assets`     | Regenerate the SVG banner and architecture diagram                     |
-| `npm run docs:record`     | Capture safe UI screenshots and regenerate the demo GIF                |
+| Command                                             | Purpose                                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `npm run setup:toolchain`                           | Install workspace-local Windows CLI and ESP32 SDK                                  |
+| `npm run build:native -- examples/native-blink.esp` | Build assembly, machine code, ROM firmware and memory map using our native backend |
+| `npm run dev`                                       | Run the server on 3001 and the IDE on 5173                                         |
+| `npm run typecheck`                                 | Check all three TypeScript packages                                                |
+| `npm test`                                          | Run compiler, USB, build, queue, session, and hosting tests                        |
+| `npm run build`                                     | Build the compiler, server, and production frontend                                |
+| `npm start`                                         | Serve the production IDE and backend on 3001                                       |
+| `npm run test:smoke`                                | Check HTTP and WebSocket paths against a running server                            |
+| `npm run test:firmware`                             | Run a real Arduino/SDK build through WebSocket; save checked images locally        |
+| `npm run test:browser`                              | Run local and hosted IDE browser tests                                             |
+| `npm run docs:assets`                               | Regenerate both SVGs and the illustrated native pipeline GIF                       |
+| `npm run docs:record`                               | Capture safe UI screenshots and regenerate the demo GIF                            |
 
 On Windows, use `npm.cmd` / `npx.cmd` if PowerShell blocks their script launchers. Browser tests use installed Chrome by default on Windows; override `CHROME_PATH` for another executable. To use Playwright Chromium on Linux/macOS, install it with `npx playwright install chromium --with-deps` and set `CHROME_PATH` to the installed executable for the test configuration, or use an installed Chrome executable.
 
-The original verification run passed **33 tests**, **3 browser tests**, and production builds. Six native application builds passed through the live server:
+The latest native implementation check passed **106 tests**, TypeScript checks and the production build. This includes **56 native tests** for instruction encodings, label resolution, program semantics, error handling and ROM image integrity. The full blink code/pool matched an independent assembler byte for byte, and esptool's image inspector accepted its checksum. Those tools were used as development checks; they are not invoked by our native build.
+
+The browser/hosting work previously passed **6 browser tests**. The original SDK verification also built these six Arduino applications through the live server:
 
 | Program / target    | Application image bytes | Verified route |
 | ------------------- | ----------------------: | -------------- |
@@ -363,9 +521,9 @@ The original verification run passed **33 tests**, **3 browser tests**, and prod
 | Blink / ESP32-C6    |                 267,472 | Native USB CDC |
 | WiFi + HTTP / ESP32 |                 934,640 | UART           |
 
-See [`VERIFICATION.md`](VERIFICATION.md) for evidence, tool versions, saved artifact locations, and the limits of automated testing. Native builds verify SDK integration; hardware reset, flash readback, GPIO behavior, and networking need physical acceptance tests on your board. USB unit tests use a mock transport. The README GIF records actual UI interactions and does not record a hardware flash session.
+See [`VERIFICATION.md`](VERIFICATION.md) for the earlier Arduino/hosting evidence and [the native hardware record](docs/NATIVE_COMPILER.md#hardware-test-record) for the latest upload. The native flash hash was verified and the user reported a blinking LED. This does not qualify all language features, boards, timing, or cold power-cycle behavior. USB unit tests use a mock transport; the native instruction test harness does not emulate physical peripherals.
 
-GitHub Actions runs type checking, unit/integration tests, and production builds on pushes to `main` and on pull requests. Firmware builds and physical USB tests are separate from that workflow.
+GitHub Actions is configured to run type checking, tests, production builds and an SDK-free native blink build. A separate [hosted workflow](.github/workflows/hosted.yml) tests the HTTPS Docker deployment and actual Arduino compilation. Physical USB acceptance is separate. A passing historical CI badge does not assert that every local change has already run remotely.
 
 ## Configuration
 
@@ -394,7 +552,7 @@ The server defaults to a **local trusted-user workspace**. Set `BUILD_MODE=hoste
 
 | Endpoint            | Contract                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `GET /api/health`   | Server and native-toolchain readiness                                                          |
+| `GET /api/health`   | Server and Arduino-toolchain readiness                                                         |
 | `GET /api/session`  | Session token for WebSocket build requests                                                     |
 | `POST /api/analyze` | JSON `{ "source": "...", "board": "esp32" }`; returns diagnostics and generated C++ when valid |
 | `WS /api/build`     | Send one authenticated build request; receive logs, firmware, or an error                      |
@@ -427,7 +585,10 @@ Each artifact has `name`, `address`, `size`, Base64 `data`, and `sha256`. Diagno
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **ESP32 toolchain needs setup**                     | Run `npm.cmd run setup:toolchain` on Windows, or install Arduino CLI and `esp32:esp32@3.3.2` with the commands above. Check `ARDUINO_CLI` / `ARDUINO_CONFIG` if using an existing install. |
 | **Large SDK download times out**                    | Rerun setup; completed archives are reused. The installer configures an extended network timeout for large toolchain packages.                                                             |
-| **Build server offline**                            | Start `npm run dev`, check port 3001, and inspect the server terminal. A frontend-only static server cannot invoke the native compiler.                                                    |
+| **Build server offline**                            | Start `npm run dev`, check port 3001 and inspect the server terminal. The current IDE needs this server for Arduino compilation; the separate native CLI does not.                         |
+| **Backup stops / Packet content transfer stopped**  | Do not reset or unplug during `read-flash`. Treat the backup as incomplete; retry and check successful completion before flashing.                                                         |
+| **Native feature is unsupported**                   | Use the documented v0.1 subset and original ESP32 target. Serial, networking and user functions currently require the Arduino backend.                                                     |
+| **Native program produces no serial text**          | The native blink example only drives GPIO 2; UART output is not implemented yet.                                                                                                           |
 | **GPIO is input-only or reserved**                  | Select a valid exposed pin for the selected board; input-only pins cannot drive outputs or use configurable pulls through this runtime.                                                    |
 | **No port appears / USB unavailable**               | Use Chrome or Edge on localhost/HTTPS, check your USB cable and driver, and close other programs holding the port.                                                                         |
 | **Connected chip differs from firmware**            | Select the matching board and rebuild before flashing.                                                                                                                                     |
@@ -440,7 +601,7 @@ Each artifact has `name`, `address`, `size`, Base64 `data`, and `sha256`. Diagno
 
 ## Regenerate the README visuals
 
-The artwork is maintained as code. The architecture is a real SVG; the animated demo is a GIF assembled from real browser screenshots using Sharp and gifenc.
+The artwork is maintained as code. `hero.svg` and `architecture.svg` describe both backends. `native-pipeline.gif` is an illustrated stage-by-stage animation; `studio-demo.gif` is assembled from real browser screenshots. Both GIFs use Sharp and gifenc. SVGs have accessible titles/descriptions; the architecture also supplies a static alternative to the native animation. GitHub README files do not run arbitrary JavaScript, so animation is supplied as GIF media.
 
 ```sh
 npm run docs:assets
@@ -472,7 +633,25 @@ Add focused tests when changing grammar, semantics, hardware rules, or process/s
 
 ## Built with
 
-EspLang Studio builds on [Arduino-ESP32](https://github.com/espressif/arduino-esp32), [Arduino CLI](https://github.com/arduino/arduino-cli), [Espressif esptool-js](https://github.com/espressif/esptool-js), [Monaco Editor](https://github.com/microsoft/monaco-editor), [React](https://react.dev/), [Vite](https://vite.dev/), and their dependencies. The custom language compiler and application integration are maintained in this repository.
+| Area                          | Languages, frameworks and libraries                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Language and native toolchain | EspLang input; handwritten TypeScript lexer/parser/analyzer, Xtensa assembly generator, assembler/linker and ROM image writer |
+| Browser IDE                   | TypeScript, React, Vite, Monaco Editor, CSS, `esptool-js`, Web Serial                                                         |
+| Local/hosted server           | Node.js, TypeScript, `tsx`, Express, WebSockets, child-process management                                                     |
+| Arduino firmware backend      | Generated C++, Arduino CLI, Arduino-ESP32 / ESP-IDF and Espressif GCC tools                                                   |
+| Native hardware runtime       | Our generated Xtensa instructions; direct GPIO, clock/watchdog and cycle-counter access                                       |
+| Native upload today           | External esptool CLI; ROM upload with `--no-stub`; own uploader is future work                                                |
+| Hosting                       | Docker, Docker Compose, Caddy, Linux build workers, shell/configuration scripts                                               |
+| Quality and media             | Vitest, Playwright, GitHub Actions, Sharp, gifenc, SVG and Markdown                                                           |
+
+The Arduino workflow builds on [Arduino-ESP32](https://github.com/espressif/arduino-esp32) and [Arduino CLI](https://github.com/arduino/arduino-cli). The IDE uses [esptool-js](https://github.com/espressif/esptool-js), [Monaco](https://github.com/microsoft/monaco-editor), [React](https://react.dev/) and [Vite](https://vite.dev/). Our native backend implements the documented [Xtensa ISA](https://github.com/espressif/xtensa-isa-doc) and ESP32 hardware/image contracts. Using TypeScript/Node on the host does not require a JavaScript runtime on the chip.
+
+## What comes next
+
+- Confirm native power-cycle persistence and measure delay timing on the tested board.
+- Implement a repository-owned ROM serial uploader and native build/assembly views in the IDE.
+- Expand native GPIO, UART, function calls, types and operators; keep unsupported features explicit.
+- Extend board qualification and strengthen hosted operations before publishing a production service.
 
 <div align="center">
 

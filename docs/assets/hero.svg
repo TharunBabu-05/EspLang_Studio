@@ -1,30 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="460" viewBox="0 0 1280 460" role="img" aria-labelledby="title description">
-  <title id="title">EspLang Studio — from source to silicon</title><desc id="description">A custom ESP32 language compiler, local web IDE, and USB flashing workspace. EspLang source is compiled to C++ and built into firmware with Espressif tools.</desc>
-  <defs>
-    <radialGradient id="glow"><stop stop-color="#20483f" stop-opacity=".65"/><stop offset="1" stop-color="#101722" stop-opacity="0"/></radialGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#253448" stroke-opacity=".3"/></pattern>
-    <linearGradient id="metal" x2="1" y2="1"><stop stop-color="#c5d4d9"/><stop offset="1" stop-color="#647f8c"/></linearGradient>
-    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#8ce8be" stroke-width="1.5"/></marker>
-  </defs>
-  <rect width="1280" height="460" rx="24" fill="#0e1520"/><rect width="1280" height="460" rx="24" fill="url(#grid)"/>
-  <g font-family="Segoe UI,Arial,sans-serif">
-  <ellipse cx="960" cy="210" rx="340" ry="240" fill="url(#glow)"/>
-  <rect x="48" y="42" width="50" height="50" rx="12" fill="#8ce8be" stroke="#8ce8be"/><text x="59" y="77" font-size="34" fill="#153b2d" font-family="Consolas,monospace" font-weight="700">e_</text>
-  <text x="116" y="63" font-size="13" fill="#8ce8be" letter-spacing="3">A LANGUAGE FOR THE THINGS YOU BUILD</text>
-  <text x="116" y="86" font-size="11" fill="#788ba4" letter-spacing="1.9">CUSTOM COMPILER  /  LOCAL WEB IDE  /  DIRECT USB</text>
-  <text x="48" y="173" font-size="76" fill="#eff7fa" font-weight="700" letter-spacing="-3">EspLang Studio</text>
-  <text x="52" y="221" font-size="35" fill="#8ce8be" font-weight="500">From source to silicon.</text>
-  <text x="52" y="260" font-size="21" fill="#a1aec3" >Write hardware. See the whole pipeline.</text>
-  <rect x="52" y="294" width="588" height="48" rx="9" fill="#141f2b" stroke="#31463f"/>
-  <text x="71" y="325" font-size="21" fill="#d1f3e4" font-family="Consolas,monospace">.esp    →    C++    →    .bin    →    ESP32</text>
-  <path d="M822 118v-22 M822 332v22 M798 142h-22 M1026 142h22" stroke="#668e91" stroke-width="7"/><path d="M845 118v-22 M845 332v22 M798 164h-22 M1026 164h22" stroke="#668e91" stroke-width="7"/><path d="M868 118v-22 M868 332v22 M798 186h-22 M1026 186h22" stroke="#668e91" stroke-width="7"/><path d="M891 118v-22 M891 332v22 M798 208h-22 M1026 208h22" stroke="#668e91" stroke-width="7"/><path d="M914 118v-22 M914 332v22 M798 230h-22 M1026 230h22" stroke="#668e91" stroke-width="7"/><path d="M937 118v-22 M937 332v22 M798 252h-22 M1026 252h22" stroke="#668e91" stroke-width="7"/><path d="M960 118v-22 M960 332v22 M798 274h-22 M1026 274h22" stroke="#668e91" stroke-width="7"/><path d="M983 118v-22 M983 332v22 M798 296h-22 M1026 296h22" stroke="#668e91" stroke-width="7"/><path d="M1006 118v-22 M1006 332v22 M798 318h-22 M1026 318h22" stroke="#668e91" stroke-width="7"/><rect x="798" y="118" width="228" height="214" rx="14" fill="#1d2d36" stroke="#739598"/><rect x="817" y="137" width="190" height="176" rx="7" fill="url(#metal)" stroke="#c3d3d5"/>
-  <text x="842" y="182" font-size="46" fill="#1f3540" font-weight="700">ESP</text><text x="842" y="237" font-size="60" fill="#1f3540" font-weight="700">32</text>
-  <text x="842" y="277" font-size="9" fill="#2a4650" letter-spacing="1.2">YOUR CODE. REAL HARDWARE.</text>
-  <rect x="1038" y="167" width="196" height="72" rx="11" fill="#152a27" stroke="#3d6555"/><text x="1056" y="192" font-size="16" fill="#d3f1e5" >ESP32 · S2 · S3</text><text x="1056" y="216" font-size="16" fill="#8ce8be" >C3 · C6</text>
-  <path d="M52 378H1228" stroke="#2c3a4e"/>
-  <text x="52" y="414" font-size="12" fill="#8198ae" letter-spacing="1.8">HANDWRITTEN COMPILER</text>
-  <text x="441" y="414" font-size="12" fill="#8198ae" letter-spacing="1.8">5 CHIP FAMILIES</text>
-  <text x="766" y="414" font-size="12" fill="#8198ae" letter-spacing="1.8">BROWSER USB + SERIAL</text>
-  <text x="1130" y="414" font-size="13" fill="#8ce8be" font-family="Consolas,monospace">v1.0.0</text>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-labelledby="title description">
+<title id="title">EspLang Native: our compiler, assembler and firmware builder</title><desc id="description">EspLang source compiles to ESP32 firmware through our own Xtensa compiler, assembler, linker and ROM image builder. No C++ conversion is used in the native build. Targets original ESP32-WROOM-32.</desc>
+<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#31485c" stroke-opacity=".22"/></pattern><radialGradient id="glow"><stop stop-color="#22664e" stop-opacity=".55"/><stop offset="1" stop-color="#101923" stop-opacity="0"/></radialGradient></defs>
+<rect width="1280" height="480" rx="20" fill="#0c1420"/><rect width="1280" height="480" rx="20" fill="url(#grid)"/>
+<g font-family="Segoe UI,Arial,sans-serif">
+  <ellipse cx="1030" cy="245" rx="330" ry="250" fill="url(#glow)"/>
+  <text x="48" y="49" font-size="13" fill="#89e8be" letter-spacing="3">ESPLANG / SOURCE TO SILICON</text>
+  <text x="48" y="132" font-size="70" fill="#edf5fa" font-weight="700" letter-spacing="-2">EspLang Studio</text>
+  <text x="50" y="184" font-size="29" fill="#89e8be" >Our language. Our native toolchain.</text>
+  <text x="50" y="224" font-size="20" fill="#a0b1c5" >Compile .esp directly into ESP32 .bin firmware.</text>
+  <rect x="50" y="255" width="705" height="57" rx="14" fill="#122b25" stroke="#35664e"/>
+  <text x="70" y="279" font-size="11" fill="#89e8be" letter-spacing="1.4">NATIVE COMPILATION / NO C++ CONVERSION</text>
+  <text x="70" y="300" font-size="19" fill="#edf5fa" font-family="Consolas,monospace">.esp → our compiler → Xtensa assembly</text>
+  <rect x="50" y="325" width="705" height="57" rx="14" fill="#122b25" stroke="#35664e"/>
+  <text x="70" y="349" font-size="11" fill="#89e8be" letter-spacing="1.4">OUR ASSEMBLER + LINKER + FIRMWARE BUILDER</text>
+  <text x="70" y="370" font-size="19" fill="#edf5fa" font-family="Consolas,monospace">Assembly → machine code → ROM image → .bin</text>
+  <path d="M873 136h-20 M1133 136h20" stroke="#7caba3" stroke-width="6"/><path d="M873 160h-20 M1133 160h20" stroke="#7caba3" stroke-width="6"/><path d="M873 184h-20 M1133 184h20" stroke="#7caba3" stroke-width="6"/><path d="M873 208h-20 M1133 208h20" stroke="#7caba3" stroke-width="6"/><path d="M873 232h-20 M1133 232h20" stroke="#7caba3" stroke-width="6"/><path d="M873 256h-20 M1133 256h20" stroke="#7caba3" stroke-width="6"/><path d="M873 280h-20 M1133 280h20" stroke="#7caba3" stroke-width="6"/><path d="M873 304h-20 M1133 304h20" stroke="#7caba3" stroke-width="6"/>
+  <rect x="873" y="112" width="260" height="238" rx="18" fill="#203d3b" stroke="#6daba0"/>
+  <rect x="892" y="131" width="222" height="200" rx="8" fill="#c4d8d6" stroke="#dfebe5"/>
+  <text x="915" y="191" font-size="44" fill="#173c3b" font-weight="700">ESP32</text>
+  <text x="917" y="227" font-size="18" fill="#28524d" letter-spacing="2">XTENSA LX6</text>
+  <text x="917" y="272" font-size="17" fill="#173c3b" font-weight="700">OUR CODE</text>
+  <text x="917" y="297" font-size="17" fill="#173c3b" font-weight="700">REAL HARDWARE</text>
+  <text x="1003" y="380" font-size="17" fill="#89e8be" text-anchor="middle">Native v0.1 · experimental</text>
+  <path d="M48 409H1232" stroke="#304255"/>
+  <text x="50" y="444" font-size="13" fill="#89e8be" >OWN COMPILER + ASSEMBLER + BUILDER</text>
+  <text x="565" y="444" font-size="13" fill="#91baff" >ORIGINAL ESP32 / XTENSA LX6</text>
+  <text x="1230" y="444" font-size="13" fill="#89e8be" text-anchor="end">NATIVE LED BLINK REPORTED</text>
+</g></svg>

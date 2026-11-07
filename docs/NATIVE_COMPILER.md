@@ -6,10 +6,12 @@ EspLang. It does not invoke Arduino CLI, GCC, LLVM, an external assembler/linker
 or esptool, and includes no prebuilt Arduino/ESP-IDF libraries or vendor
 second-stage bootloader.
 
-**Hardware execution is not yet verified.** Software checks cover instruction
-bytes, program semantics and image structure. They do not prove ROM boot, clock
-initialization, GPIO wiring or operation after power cycling. The browser IDE's
-Build button continues to use Arduino; this new path has a CLI and TypeScript API.
+**First hardware blink reported on November 7, 2026.** The supplied terminal log
+confirms a verified upload to an ESP32-D0WD-V3; the user observed LED blinking after
+upload/reset. This is evidence for the tested blink program, not qualification of
+all native features or boards. Power-cycle persistence and measured timing remain
+pending. The browser IDE's Build button continues to use Arduino; the native path
+has a CLI and TypeScript API.
 
 ## Build
 
@@ -24,11 +26,11 @@ This command writes files only; it does not flash a board.
 
 Default output: `.builds/native/native-blink/`
 
-| File | Contents |
-| --- | --- |
-| `program.s` | Xtensa assembly, literal pool and source-line annotations |
-| `program.code.bin` | Linked instruction/literal bytes; **not a flash image** |
-| `program.bin` | ROM image headers, code/data segments, padding and checksum |
+| File               | Contents                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `program.s`        | Xtensa assembly, literal pool and source-line annotations                                |
+| `program.code.bin` | Linked instruction/literal bytes; **not a flash image**                                  |
+| `program.bin`      | ROM image headers, code/data segments, padding and checksum                              |
 | `program.map.json` | Entry, flash offset, symbols, variable locations, image SHA-256 and hardware assumptions |
 
 The included blink example uses `pinMode(2, OUTPUT)`, `digitalWrite(2, HIGH/LOW)`
@@ -70,19 +72,19 @@ const result = compileNative(source, 'esp32');
 
 ## Language subset
 
-| Feature | Native v0.1 |
-| --- | --- |
-| `setup`, `loop` / `task`, early `return` | Setup once, loop repeats |
-| `int`, `bool`, globals, locals, nested scopes | Supported; 256 total variable/temporary slots |
-| `+`, `-`, `*`, unary `+`/`-` | Signed 32-bit values with wrapping arithmetic |
-| `==`, `!=`, `<`, `<=`, `>`, `>=` | Supported, signed comparisons |
-| `!`, `&&`, `||` | Supported; short-circuit evaluation |
-| `if`/`else`, `while`, `for` | Supported |
-| GPIO | Constant `pinMode(2, OUTPUT)` and `digitalWrite(2, HIGH/LOW)` |
-| Delay | Constant integer 0..60000 ms; cycle-counter polling at 40 MHz |
-| Functions, division, remainder, float, string | Explicit unsupported-feature errors |
-| Serial, input GPIO, PWM, Wi-Fi, HTTP | Explicit unsupported-feature errors |
-| Other chip families | Rejected; original ESP32 only |
+| Feature                                       | Native v0.1                                                   |
+| --------------------------------------------- | ------------------------------------------------------------- |
+| `setup`, `loop` / `task`, early `return`      | Setup once, loop repeats                                      |
+| `int`, `bool`, globals, locals, nested scopes | Supported; 256 total variable/temporary slots                 |
+| `+`, `-`, `*`, unary `+`/`-`                  | Signed 32-bit values with wrapping arithmetic                 |
+| `==`, `!=`, `<`, `<=`, `>`, `>=`              | Supported, signed comparisons                                 |
+| `!`, `&&`, `                                  |                                                               | `   | Supported; short-circuit evaluation |
+| `if`/`else`, `while`, `for`                   | Supported                                                     |
+| GPIO                                          | Constant `pinMode(2, OUTPUT)` and `digitalWrite(2, HIGH/LOW)` |
+| Delay                                         | Constant integer 0..60000 ms; cycle-counter polling at 40 MHz |
+| Functions, division, remainder, float, string | Explicit unsupported-feature errors                           |
+| Serial, input GPIO, PWM, Wi-Fi, HTTP          | Explicit unsupported-feature errors                           |
+| Other chip families                           | Rejected; original ESP32 only                                 |
 
 The existing `examples/blink.esp` includes serial printing and GPIO input, which
 this backend does not support yet. Use `examples/native-blink.esp`.
@@ -99,12 +101,12 @@ application image for `0x10000` and must not use an Arduino partition manifest.
 The ROM is expected to copy code/data into RAM and enter `_start`; the application
 runs from RAM without flash XIP.
 
-| Region | Address / size |
-| --- | --- |
-| IRAM code/literal pool | `0x40080000` through `0x40087fff`, maximum 32 KiB |
-| DRAM variables/temporaries | `0x3ffb0000`, 1 KiB, zero-filled by the image loader |
-| Reserved stack | `0x3ffb7000` through `0x3ffb7fff`; initial `a1 = 0x3ffb8000` |
-| Flash image | Offset `0x1000`, DIO, 40 MHz, 4 MiB flash header |
+| Region                     | Address / size                                               |
+| -------------------------- | ------------------------------------------------------------ |
+| IRAM code/literal pool     | `0x40080000` through `0x40087fff`, maximum 32 KiB            |
+| DRAM variables/temporaries | `0x3ffb0000`, 1 KiB, zero-filled by the image loader         |
+| Reserved stack             | `0x3ffb7000` through `0x3ffb7fff`; initial `a1 = 0x3ffb8000` |
+| Flash image                | Offset `0x1000`, DIO, 40 MHz, 4 MiB flash header             |
 
 Startup masks normal interrupts, establishes stack/data base, keeps the second
 core stalled, disables RTC/timer-group boot watchdogs, and selects the 40 MHz
@@ -138,13 +140,40 @@ and have a recovery image or original firmware backup before hardware validation
   image and reported a valid checksum. Native builds never invoke esptool.
 - CI is configured to run the native build without an installed ESP32 SDK.
 
-Run `npm test` and `npm run typecheck`. Remaining acceptance work: flash the
-identified board, observe GPIO changes, measure timing, and verify boot after
-power cycling. Software checks alone do not establish hardware correctness.
+Run `npm test` and `npm run typecheck`. The latest implementation check passed 106
+tests, including 56 native tests, plus type checking and production builds.
+
+## Hardware test record
+
+On November 7, 2026, the user supplied esptool terminal output and reported that
+the LED began blinking after the native image was uploaded.
+
+| Check                            | Evidence / result                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| Chip                             | ESP32-D0WD-V3, revision v3.1; original ESP32 family                               |
+| Crystal / flash                  | 40 MHz / 4 MB, detected by esptool 5.1.0                                          |
+| Connection                       | CP210x USB-UART bridge, COM13 in the test session                                 |
+| Image                            | Native blink: 464 code/pool bytes, 1,536 image bytes, offset `0x1000`             |
+| Upload                           | `--no-stub`; affected sector `0x1000..0x1fff`; hash verified; automatic RTS reset |
+| Transfer length                  | Tool reported 2,048 bytes including transfer padding; image itself is 1,536 bytes |
+| GPIO behavior                    | LED blinking after upload/reset, reported by user; no hardware video captured     |
+| Recovery backup                  | Interrupted at 10.9% when RESET was pressed; not a verified full backup           |
+| Power-cycle persistence / timing | Not yet reported / not instrumented                                               |
+
+The original interrupted backup must not be used for full restoration. A new
+backup taken after flashing contains the native firmware, not the complete prior
+image. See the README's [identify, backup and flash instructions](../README.md#identify-back-up-and-flash)
+for guarded commands and recovery guidance. Device MAC addresses and raw firmware
+backups are intentionally excluded from the published record.
+
+Remaining acceptance work: cold power cycling, measured timing and broader
+feature/board qualification. The CLI's generated `hardwareVerified: false` field
+is conservative per-build metadata; compiling a new program does not establish
+that it has been tested on a physical board.
 
 ## Next steps
 
-1. Verify ROM loading and startup on the physical board.
+1. Confirm power-cycle persistence and measure timing after the initial reported blink.
 2. Implement our own ROM serial uploader without a prebuilt flasher stub if the
    upload path must also be repository-owned.
 3. Expand GPIO coverage, UART output, input handling and timers.
