@@ -14,6 +14,7 @@
     "dev": "concurrently -k -n server,ide \"npm run dev -w @esplang/server\" \"npm run dev -w @esplang/web\"",
     "build": "npm run build -w @esplang/compiler && npm run build -w @esplang/server && npm run build -w @esplang/web",
     "build:native": "tsx scripts/native-build.ts",
+    "native:usb": "tsx packages/server/src/nativeUploader/cli.ts",
     "typecheck": "tsc -p packages/compiler --noEmit && tsc -p packages/server --noEmit && tsc -p packages/web --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",

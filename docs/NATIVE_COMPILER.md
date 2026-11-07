@@ -140,8 +140,10 @@ and have a recovery image or original firmware backup before hardware validation
   image and reported a valid checksum. Native builds never invoke esptool.
 - CI is configured to run the native build without an installed ESP32 SDK.
 
-Run `npm test` and `npm run typecheck`. The latest implementation check passed 106
-tests, including 56 native tests, plus type checking and production builds.
+Run `npm test` and `npm run typecheck`. The latest implementation check passed 150
+tests, including 56 native compiler tests and 44 uploader/serial tests, plus type
+checking and production builds. See [our ROM uploader](NATIVE_UPLOADER.md) for the
+separate upload implementation and pending hardware acceptance.
 
 ## Hardware test record
 
@@ -174,8 +176,9 @@ that it has been tested on a physical board.
 ## Next steps
 
 1. Confirm power-cycle persistence and measure timing after the initial reported blink.
-2. Implement our own ROM serial uploader without a prebuilt flasher stub if the
-   upload path must also be repository-owned.
+2. Continue hardware validation of [our ROM uploader](NATIVE_UPLOADER.md): manual
+   identification passed; verified backup, explicit write, power-cycle and restore
+   remain. Automatic ROM entry still needs work on the tested Windows/CP210x board.
 3. Expand GPIO coverage, UART output, input handling and timers.
 4. Add an IDE native-backend selector, assembly view and compatible flash manifest
    after hardware validation.

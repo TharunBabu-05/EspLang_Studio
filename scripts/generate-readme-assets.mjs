@@ -75,7 +75,7 @@ const architecture = svg(
   1280,
   1280,
   'EspLang architecture: shared frontend, two build pipelines',
-  'The shared lexer, parser and semantic analyzer feed either our native Xtensa generator, assembler, linker and image packager, or our C++ generator and external Arduino tools. Native uploads use esptool; browser uploads use esptool-js. Hosted Docker workers currently run Arduino builds.',
+  'The shared lexer, parser and semantic analyzer feed either our native Xtensa generator, assembler, linker and image packager, or our C++ generator and external Arduino tools. Native uploads have our experimental ROM uploader; browser uploads use esptool-js. Hosted Docker workers currently run Arduino builds.',
   `
   ${text(50, 44, 'ARCHITECTURE / OWNERSHIP AT EVERY STAGE', 13, mint, 'letter-spacing="2"')}
   ${text(50, 98, 'From language design to a blinking LED.', 38, ink, 'font-weight="650"')}
@@ -100,9 +100,9 @@ const architecture = svg(
   ${stage(666, 688, amber, 'ARDUINO IMAGES / CHECKED BY OUR SERVER', 'Bootloader + partitions + application', 'Sparse images · bounds checks · SHA-256 manifest')}
   ${arrow(332, 792, 332, 814, blue)}${arrow(948, 792, 948, 814, blue)}
   ${box(50, 820, 564, 100, '#142237', '#375881')}
-  ${text(72, 848, 'EXTERNAL UPLOAD TOOL', 11, blue, 'letter-spacing="1.5"')}
-  ${text(72, 880, 'esptool --no-stub → chip ROM', 23, ink)}
-  ${text(72, 906, 'One native image at 0x1000; separate from IDE flashing', 15)}
+  ${text(72, 848, 'OUR ROM UPLOADER / EXPERIMENTAL', 11, blue, 'letter-spacing="1.5"')}
+  ${text(72, 880, 'Our serial protocol → chip ROM', 23, ink)}
+  ${text(72, 906, 'Backup → write → verify; serialport OS transport', 15)}
   ${box(666, 820, 564, 100, '#142237', '#375881')}
   ${text(688, 848, 'EXTERNAL USB LIBRARY / OUR IDE INTEGRATION', 11, blue, 'letter-spacing="1.2"')}
   ${text(688, 880, 'esptool-js + Web Serial → board', 23, ink)}
@@ -110,7 +110,7 @@ const architecture = svg(
   ${arrow(332, 924, 332, 946)}
   ${box(50, 952, 1180, 112, '#10231f', '#35664e')}
   ${text(74, 985, 'NATIVE HARDWARE MILESTONE', 12, mint, 'letter-spacing="1.5"')}
-  ${text(74, 1020, 'ESP32-D0WD-V3: verified upload + user-reported LED blink', 25, ink)}
+  ${text(74, 1020, 'ESP32-D0WD-V3: esptool upload + user-reported LED blink', 25, ink)}
   ${text(74, 1048, '1,536-byte image · 464 code/pool bytes · power-cycle persistence and measured timing pending', 16)}
   ${box(50, 1096, 1180, 132, '#152131', '#304255')}
   ${text(74, 1127, 'HOSTED ARDUINO BUILDS / DEPLOYMENT PREPARED', 12, blue, 'letter-spacing="1.5"')}
@@ -157,15 +157,15 @@ const steps = [
   [
     'USB',
     'Upload the firmware',
-    'External esptool, using the chip ROM',
+    'Our experimental ROM uploader',
     'Identify → back up → write-flash at 0x1000.',
-    'Uploading is separate from compilation.',
+    'Hardware acceptance pending; CLI available.',
   ],
   [
     'RUN',
     'The board executes our code',
     'ESP32-D0WD-V3 / GPIO 2',
-    'Upload verified; LED blink reported by user.',
+    'Earlier esptool upload: LED blink reported.',
     'Power-cycle and timing checks remain pending.',
   ],
 ];

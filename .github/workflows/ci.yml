@@ -30,3 +30,5 @@ jobs:
       - run: npm run build
       # This runner has no Arduino/ESP32 SDK: the native build must stand alone.
       - run: npm run build:native -- examples/native-blink.esp
+      # Exercise CLI startup without opening a port or requiring hardware.
+      - run: npm run native:usb -- --help

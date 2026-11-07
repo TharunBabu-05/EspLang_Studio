@@ -23,7 +23,7 @@ EspLang Native compiles `.esp` directly into ESP32 `.bin` firmware through **our
 
 ## Native compiler and builder
 
-**This path goes directly from EspLang to machine instructions. It does not generate C++ or invoke Arduino CLI, GCC, LLVM, an external assembler/linker, or esptool during the build.** The compiler runs on Node.js and uses our handwritten TypeScript implementation. Uploading is a separate operation and currently uses external esptool.
+**This path goes directly from EspLang to machine instructions. It does not generate C++ or invoke Arduino CLI, GCC, LLVM, an external assembler/linker, or esptool during the build.** The compiler runs on Node.js and uses our handwritten TypeScript implementation. Uploading is a separate operation. Our experimental ROM uploader now implements identification, backup, write and recovery; Node.js and `serialport` provide the host runtime and OS transport.
 
 From a fresh checkout, install Node.js 22.12+ and the project dependencies:
 
@@ -73,6 +73,36 @@ The older `examples/blink.esp` includes serial output and input GPIO. Use `examp
 </details>
 
 ## Identify, back up, and flash
+
+**New: our own ROM uploader.** The native path now has repository-owned upload commands, without esptool, esptool-js, Python or a prebuilt RAM flasher. It uses Node.js and `serialport` for OS serial access and speaks the chip's built-in ROM protocol.
+
+| Our command | Purpose | Writes flash? |
+| --- | --- | --- |
+| `flash-id` | Check original ESP32, security settings, 40 MHz crystal and 4 MiB flash | No |
+| `read-flash` | Save and verify flash plus a recovery manifest | No |
+| `write-flash` | Automatically back up affected sectors, install native image at 0x1000 and verify | Yes |
+| `restore-flash` | Back up current contents and restore a verified backup to the same board | Yes |
+
+Close all serial monitors and replace COM13 with your port:
+
+```powershell
+npm.cmd run native:usb -- ports
+npm.cmd run native:usb -- flash-id --port COM13
+npm.cmd run native:usb -- read-flash --port COM13
+npm.cmd run build:native -- examples/native-blink.esp
+npm.cmd run native:usb -- write-flash --port COM13 --image .builds/native/native-blink/program.bin --confirm-write
+```
+
+Wait for each command to finish successfully before the next. The default read saves all 4 MiB; slow ROM reads can take many minutes. Every write requires a verified backup of the affected sectors before erase. Backups live under ignored `.builds/backups/`; retain both `flash.bin` and `recovery.json`. Interrupted reads are not valid backups. Restore using the actual printed manifest path:
+
+```powershell
+npm.cmd run native:usb -- restore-flash --port COM13 --backup .builds/backups/esp32-REPLACE/recovery.json --confirm-write
+```
+
+**Experimental status:** our uploader's physical identification check passed: original ESP32, 4 MiB flash, 40 MHz crystal, secure boot and encryption disabled. Automatic ROM entry still times out on the tested Windows/CP210x board; physical read/write/restore verification is pending. Add `--manual-boot` in an interactive terminal. Wait for **Port is open**, hold BOOT, tap EN/RESET, release BOOT, then press Enter. The earlier reported native LED blink used esptool. See [uploader instructions, implementation and acceptance record](docs/NATIVE_UPLOADER.md).
+
+<details>
+<summary><strong>Existing esptool fallback: the three commands used for the first blinking LED</strong></summary>
 
 These are three separate operations. **`read-flash` creates a backup; restoring it requires `write-flash`.** The assignments `$espTool = ...` and `$nativeBackup = ...` only set PowerShell variables.
 
@@ -143,6 +173,8 @@ In a new terminal, reselect the tool, port and a backup whose successful read yo
 
 </details>
 
+</details>
+
 ## See it in action
 
 ![Animated explanation of the native source-to-firmware pipeline](docs/assets/native-pipeline.gif)
@@ -180,7 +212,7 @@ The repository also retains the earlier C++/Arduino backend for the browser IDE 
 | Firmware dependencies | Arduino CLI, Arduino-ESP32 and its SDK/toolchain             | Our generated startup/runtime; no prebuilt firmware SDK libraries            |
 | Targets               | ESP32, S2, S3, C3, C6                                        | Original ESP32 / ESP32-WROOM-32 only                                         |
 | Language coverage     | Functions, strings, float, GPIO, serial, PWM, Wi-Fi and HTTP | Int/bool, arithmetic subset, control flow, GPIO 2 output and constant delays |
-| Upload                | Browser `esptool-js` + Web Serial                            | Separate `esptool` CLI; native uploader not yet implemented                  |
+| Upload                | Browser `esptool-js` + Web Serial                            | Our experimental ROM uploader CLI; esptool fallback                  |
 | Entry point           | `npm run dev`, then the IDE Build button                     | `npm run build:native -- examples/native-blink.esp`                          |
 
 **Hardware milestone — November 7, 2026:** native firmware was uploaded to an **ESP32-D0WD-V3, revision v3.1**, with a **40 MHz crystal and 4 MB flash**. The supplied terminal log confirms flash hash verification, and the user reported the LED blinking after upload/reset. Power-cycle persistence and measured timing have not yet been reported. See the [hardware evidence record](docs/NATIVE_COMPILER.md#hardware-test-record).
@@ -250,7 +282,7 @@ program.esp
        ├─ Native CLI: our Xtensa code generator → program.s
        │    → our assembler + single-section linker
        │    → our startup/runtime + image packager → program.bin
-       │    → esptool ROM upload → original ESP32
+       │    → our ROM uploader → original ESP32
        │
        └─ Browser IDE: our C++ generator → main.cpp
             → Node server → Arduino CLI + Espressif GCC/SDK
@@ -258,7 +290,7 @@ program.esp
             → esptool-js + Web Serial → supported ESP32 family
 ```
 
-**Our code now covers the language frontend, C++ generator, native Xtensa code generator, native assembler/linker, runtime generation and firmware packaging.** The Arduino workflow still delegates final machine-code generation to Espressif/GCC. Host runtimes and USB upload tools remain external dependencies; the native firmware contains no prebuilt SDK runtime.
+**Our code now covers the language frontend, C++ generator, native Xtensa code generator, native assembler/linker, runtime generation and firmware packaging.** The Arduino workflow still delegates final machine-code generation to Espressif/GCC. Our native ROM uploader handles USB protocol commands; Node.js, OS drivers and serialport remain external host dependencies; the native firmware contains no prebuilt SDK runtime.
 
 | Stage                             | Implementation                                                                                           | Responsibility                                                                                 |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -497,6 +529,7 @@ EspLang_Studio/
 | `npm run build:native -- examples/native-blink.esp` | Build assembly, machine code, ROM firmware and memory map using our native backend |
 | `npm run dev`                                       | Run the server on 3001 and the IDE on 5173                                         |
 | `npm run typecheck`                                 | Check all three TypeScript packages                                                |
+| `npm run native:usb -- --help` | Show our native ROM uploader commands |
 | `npm test`                                          | Run compiler, USB, build, queue, session, and hosting tests                        |
 | `npm run build`                                     | Build the compiler, server, and production frontend                                |
 | `npm start`                                         | Serve the production IDE and backend on 3001                                       |
@@ -508,7 +541,7 @@ EspLang_Studio/
 
 On Windows, use `npm.cmd` / `npx.cmd` if PowerShell blocks their script launchers. Browser tests use installed Chrome by default on Windows; override `CHROME_PATH` for another executable. To use Playwright Chromium on Linux/macOS, install it with `npx playwright install chromium --with-deps` and set `CHROME_PATH` to the installed executable for the test configuration, or use an installed Chrome executable.
 
-The latest native implementation check passed **106 tests**, TypeScript checks and the production build. This includes **56 native tests** for instruction encodings, label resolution, program semantics, error handling and ROM image integrity. The full blink code/pool matched an independent assembler byte for byte, and esptool's image inspector accepted its checksum. Those tools were used as development checks; they are not invoked by our native build.
+The latest implementation check passed **150 tests**, TypeScript checks and the production build. This includes **56 native compiler tests** for instruction encodings, label resolution, program semantics, error handling and ROM image integrity, plus **44 uploader/serial tests** for protocol failures, bounded SYNC retries, verification, recovery sequencing and connection cleanup. The full blink code/pool previously matched an independent assembler byte for byte, and esptool's image inspector accepted its checksum. Those tools were used as development checks; they are not invoked by our native build.
 
 The browser/hosting work previously passed **6 browser tests**. The original SDK verification also built these six Arduino applications through the live server:
 
@@ -640,7 +673,7 @@ Add focused tests when changing grammar, semantics, hardware rules, or process/s
 | Local/hosted server           | Node.js, TypeScript, `tsx`, Express, WebSockets, child-process management                                                     |
 | Arduino firmware backend      | Generated C++, Arduino CLI, Arduino-ESP32 / ESP-IDF and Espressif GCC tools                                                   |
 | Native hardware runtime       | Our generated Xtensa instructions; direct GPIO, clock/watchdog and cycle-counter access                                       |
-| Native upload today           | External esptool CLI; ROM upload with `--no-stub`; own uploader is future work                                                |
+| Native upload today           | Our experimental ROM uploader: identify, backup, write, restore; OS serialport transport; esptool fallback                                                |
 | Hosting                       | Docker, Docker Compose, Caddy, Linux build workers, shell/configuration scripts                                               |
 | Quality and media             | Vitest, Playwright, GitHub Actions, Sharp, gifenc, SVG and Markdown                                                           |
 
@@ -649,7 +682,7 @@ The Arduino workflow builds on [Arduino-ESP32](https://github.com/espressif/ardu
 ## What comes next
 
 - Confirm native power-cycle persistence and measure delay timing on the tested board.
-- Implement a repository-owned ROM serial uploader and native build/assembly views in the IDE.
+- Complete physical acceptance of our new ROM uploader, then add native build/assembly views in the IDE.
 - Expand native GPIO, UART, function calls, types and operators; keep unsupported features explicit.
 - Extend board qualification and strengthen hosted operations before publishing a production service.
 
