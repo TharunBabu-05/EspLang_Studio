@@ -13,6 +13,7 @@
     "setup:toolchain": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-toolchain.ps1",
     "dev": "concurrently -k -n server,ide \"npm run dev -w @esplang/server\" \"npm run dev -w @esplang/web\"",
     "build": "npm run build -w @esplang/compiler && npm run build -w @esplang/server && npm run build -w @esplang/web",
+    "build:native": "tsx scripts/native-build.ts",
     "typecheck": "tsc -p packages/compiler --noEmit && tsc -p packages/server --noEmit && tsc -p packages/web --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
@@ -23,7 +24,9 @@
     "docs:record": "node scripts/record-readme-demo.mjs"
   },
   "overrides": {
-    "vite": "6.4.5"
+    "vite": "6.4.5",
+    "zod": "4.6.6",
+    "minimatch": "11.0.1"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

@@ -1,0 +1,12 @@
+// Native v0.1: original ESP32-WROOM-32, 40 MHz crystal, GPIO 2 LED.
+// This program uses no Arduino runtime. See docs/NATIVE_COMPILER.md.
+setup {
+  pinMode(2, OUTPUT);
+}
+
+loop {
+  digitalWrite(2, HIGH);
+  delay(500);
+  digitalWrite(2, LOW);
+  delay(500);
+}

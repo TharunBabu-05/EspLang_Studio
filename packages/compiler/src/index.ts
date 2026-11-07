@@ -4,6 +4,7 @@ export * from './lexer.js';
 export * from './parser.js';
 export * from './analyzer.js';
 export * from './codegen.js';
+export { compileNative, type NativeBuild, type NativeCompileResult } from './native/compiler.js';
 import { CompileError, type Diagnostic, type ProgramNode } from './ast.js';
 import { parse } from './parser.js';
 import { analyze } from './analyzer.js';

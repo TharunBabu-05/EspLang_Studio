@@ -24,6 +24,14 @@ EspLang Studio is a local development environment built around a handwritten Typ
 
 ## See it in action
 
+**Experimental native compiler:** [EspLang Native v0.1](docs/NATIVE_COMPILER.md)
+builds a small EspLang subset directly into Xtensa LX6 assembly and an ESP32 ROM
+image using our assembler, linker and image writer. Run
+`npm run build:native -- examples/native-blink.esp`; Arduino CLI and the ESP32 SDK
+are not required for this command. It currently targets the original ESP32-WROOM-32
+with GPIO 2 output. Hardware boot/blink verification is pending. The browser IDE's
+existing Build button still uses the Arduino pipeline.
+
 ![Animated tour of the real IDE: editing EspLang, correcting a GPIO error, viewing generated C++, choosing a target, and opening serial controls](docs/assets/studio-demo.gif)
 
 Recorded from the real application in an isolated browser session using the included examples. The tour demonstrates editor and compiler behavior plus board and serial controls. Actual flashing requires selecting a USB device in your browser.

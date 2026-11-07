@@ -28,3 +28,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # This runner has no Arduino/ESP32 SDK: the native build must stand alone.
+      - run: npm run build:native -- examples/native-blink.esp
